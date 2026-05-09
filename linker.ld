@@ -1,19 +1,16 @@
-ENTRY(kernel_entry)
-OUTPUT_FORMAT(binary)
+ENTRY(start)
+OUTPUT_FORMAT(elf64-x86-64)
 
 SECTIONS
 {
-    . = 0x1000; /* Adresse de début du kernel*/
+  . = 1M; /* Chargement à 1 Mo */
 
-    .text : {
-        *(.text)
-    }
+  .text : {
+    KEEP(*(.multiboot_header)) /* Force le header au début */
+    *(.text .text.*)
+  }
 
-    .data : {
-        *(.data)
-    }
-
-    .bss : {
-        *(.bss)
-    }
+  .rodata : { *(.rodata .rodata.*) }
+  .data   : { *(.data .data.*) }
+  .bss    : { *(.bss .bss.*) }
 }

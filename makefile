@@ -1,18 +1,34 @@
-all: bootloader kernel image
+all: bootloader kernel linkage iso
 
 bootloader:
-	nasm -f bin boot/src/boot.asm -o bin/boot.bin
+	# Assemblage du bootloader.
+	nasm -f elf64 boot/src/multiboot_header.asm -o bin/multiboot_header.o
+	nasm -f elf64 boot/src/long_mode_init.asm -o bin/long_mode_init.o
+	nasm -f elf64 boot/src/start.asm -o bin/start.o
 
 kernel:
-	nasm -f elf64 boot/src/kernel_entry.asm -o bin/kernel_entry.o
+	# Compilation du noyau rust pour x86_64
 	cargo build --target x86_64-unknown-none --release
-	ld -T linker.ld -Map bin/kernel.map -o bin/kernel.bin bin/kernel_entry.o target/x86_64-unknown-none/release/libk_os.a
 
-image:
-	cat bin/boot.bin bin/kernel.bin boot/src/zeroes.asm > bin/os.bin
+linkage:
+	# Linkage du bootloader et du kernel.
+	ld -n -T linker.ld -Map bin/kernel.map -o bin/kernel.bin\
+		bin/multiboot_header.o\
+		bin/long_mode_init.o\
+		bin/start.o\
+		target/x86_64-unknown-none/release/libk_os.a
+
+iso:
+	# Création de la structure pour GRUB
+	mkdir -p bin/isofiles/boot/grub
+	cp bin/kernel.bin bin/isofiles/boot/
+	cp boot/grub/grub.cfg bin/isofiles/boot/grub/
+	
+	# Création de l'image ISO
+	grub-mkrescue -o bin/os.iso bin/isofiles
 
 run:
-	qemu-system-x86_64 -no-reboot -drive format=raw,file=bin/os.bin
+	qemu-system-x86_64 -cdrom bin/os.iso -no-reboot -serial stdio
 
 clean:
 	rm bin/*
