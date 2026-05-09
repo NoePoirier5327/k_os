@@ -1,10 +1,20 @@
 [package]
 name = "k_os"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
 name = "k_os"
 crate-type = ["staticlib"]
 test = false
 doctest = false
+
+[dependencies.lazy_static]
+version = "1.0"
+features = ["spin_no_std"]
+
+[dependencies.spin]
+version = "0.5.2"
+
+[dependencies.volatile]
+version = "0.2.6"
