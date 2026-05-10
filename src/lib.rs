@@ -12,7 +12,10 @@ use core::arch::asm;
 // "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
+    init();
     println!("Welcome to k_os.");
+
+    x86_64::instructions::interrupts::int3();
 
     hlt();
 }
@@ -31,4 +34,9 @@ fn hlt() -> ! {
             asm!("hlt", options(nomem, nostack, preserves_flags));
         }
     }
+}
+
+/// Fonction d'initialisation des composantes de sécurité processeur comme la IDT.
+fn init() {
+    interrupts::init_idt();
 }
