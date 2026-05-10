@@ -1,7 +1,10 @@
 #![no_std]
 #![no_main]
 
+#![feature(abi_x86_interrupt)]
+
 pub mod vga_buffer;
+pub mod interrupts;
 
 use core::panic::PanicInfo;
 use core::arch::asm;
@@ -20,6 +23,8 @@ fn panic(info: &PanicInfo) -> ! {
     hlt();
 }
 
+/// Fonction d'arrêt du processeur en fonction du processeur.<br>
+/// TODO le faire fonctionner pour d'autres architectures que le x86_64.
 fn hlt() -> ! {
     loop {
         unsafe{
