@@ -1,6 +1,6 @@
 //! Module d'affichage de caractère dans le buffer vga. <br>
 //! Code tiré du tutoriel de Philipp Opermann.<br>
-//! https://os.phil-opp.com/vga-text-mode/
+//! <https://os.phil-opp.com/vga-text-mode/>
 
 use core::fmt;
 use lazy_static::lazy_static;
