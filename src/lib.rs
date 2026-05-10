@@ -5,6 +5,7 @@
 
 pub mod vga_buffer;
 pub mod interrupts;
+pub mod gdt;
 
 use core::panic::PanicInfo;
 use core::arch::asm;
@@ -15,7 +16,11 @@ pub extern "C" fn _start() -> ! {
     init();
     println!("Welcome to k_os.");
 
-    x86_64::instructions::interrupts::int3();
+    fn stack_overflow() {
+        stack_overflow();
+    }
+
+    stack_overflow();
 
     hlt();
 }
@@ -38,5 +43,6 @@ fn hlt() -> ! {
 
 /// Fonction d'initialisation des composantes de sécurité processeur comme la IDT.
 fn init() {
+    gdt::init();
     interrupts::init_idt();
 }
