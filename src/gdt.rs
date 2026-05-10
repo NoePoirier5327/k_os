@@ -10,6 +10,8 @@ use lazy_static::lazy_static;
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 lazy_static! {
+    /// S'occupe de trouver une zone mémoire saine et accessible pour replacer
+    /// le pointeur de pile.
     static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
@@ -24,8 +26,14 @@ lazy_static! {
     };
 }
 
+/// Type gérant les segments mémoire pour le déplacement de pile.
+struct Selectors {
+    code_selector: SegmentSelector,
+    tss_selector: SegmentSelector
+}
 
 lazy_static! {
+    /// S'occupe de déplacer le pointeur de pile lors de double fault.
     static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
         let code_selector = gdt.append(Descriptor::kernel_code_segment());
@@ -34,11 +42,8 @@ lazy_static! {
     };
 }
 
-struct Selectors {
-    code_selector: SegmentSelector,
-    tss_selector: SegmentSelector,
-}
-
+/// Fonction de chargement de la GDT pour l'échange de pile lors de double
+/// fault notamment causer par un stack overflow.
 pub fn init() {
     use x86_64::instructions::tables::load_tss;
     use x86_64::instructions::segmentation::{CS, Segment};
