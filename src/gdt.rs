@@ -6,6 +6,7 @@ use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
 use x86_64::structures::gdt::SegmentSelector;
 use lazy_static::lazy_static;
+use crate::print;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -47,10 +48,16 @@ lazy_static! {
 pub fn init() {
     use x86_64::instructions::tables::load_tss;
     use x86_64::instructions::segmentation::{CS, Segment};
-    
+   
+    print!("Load gdt sector 0 ");
     GDT.0.load();
+    print!("(OK)\n");
     unsafe {
+        print!("Set new stack pointer ");
         CS::set_reg(GDT.1.code_selector);
+        print!("(OK)\n");
+        print!("Load new tss ");
         load_tss(GDT.1.tss_selector);
+        print!("(OK)\n");
     }
 }
