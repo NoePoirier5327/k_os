@@ -12,3 +12,4 @@ header_start:
     dw 0    ; Flags
     dd 8    ; Taille
 header_end:
+section .note.GNU-stack noalloc noexec nowrite progbits

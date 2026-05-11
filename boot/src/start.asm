@@ -13,3 +13,4 @@ long_mode_start:
 
     call _start
     hlt
+section .note.GNU-stack noalloc noexec nowrite progbits

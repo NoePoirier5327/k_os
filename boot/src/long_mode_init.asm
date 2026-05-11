@@ -111,3 +111,5 @@ gdt64:
 .pointer:
   dw $ - gdt64 - 1
   dq gdt64
+
+section .note.GNU-stack noalloc noexec nowrite progbits
