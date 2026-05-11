@@ -1,6 +1,6 @@
 //! Fichier contenant l'implémentation de la gestion de la IDT.<br>
 //! Pour l'instant elle ne fonctionne qu'avec l'architecture x86-64. <br>
-//! TODO Faire en sorte que ça fonctionne pour les autres.
+// TODO Faire en sorte que ça fonctionne pour d'autres architectures.
 
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use lazy_static::lazy_static;

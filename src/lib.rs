@@ -1,3 +1,7 @@
+//! Fichier principal du kernel, chargé par grub au démarrage dans start.asm.
+
+// TODO Implémenter un guard page sous les piles d'appels pour gérer le stack overflow.
+
 #![no_std]
 #![no_main]
 
@@ -16,11 +20,9 @@ pub extern "C" fn _start() -> ! {
     init();
     println!("Welcome to k_os.");
 
-    fn stack_overflow() {
-        stack_overflow();
-    }
-
-    stack_overflow();
+    unsafe {
+        *(0xdeadbeef as *mut u64) = 42;
+    };
 
     hlt();
 }
