@@ -24,14 +24,21 @@ pub fn init_idt() {
     IDT.load();
 }
 
-extern "x86-interrupt" fn breakpoint_handler(
-    stack_frame: InterruptStackFrame)
-{
+/// Fonction gérant les interruptions de séquences qui ne nécessite pas de code d'erreur.<br>
+/// Elle affiche le message d'erreur puis rend la main au système.
+///
+/// # Argument
+/// * `stack_frame` : message d'erreur à afficher.
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: breakpoint\n{:#?}", stack_frame);
 }
 
-extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: InterruptStackFrame, _error_code: u64) -> !
-{
-    panic!("EXCEPTION: double fault\n{:#?}", stack_frame);
+/// Fonction gérant les interruptions de séquences avec code d'erreur.<br>
+/// Elle appelle la panic avant de redonner la main au système.
+///
+/// # Arguments
+/// * `stack_frame` : message d'erreur à envoyer à la panic.
+/// * `_error_code` : code d'erreur correspondant à l'erreur en paramètre.
+extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, _error_code: u64) -> ! {
+    panic!("EXCEPTION: double fault\nError code : {:#?}\n{:#?}", _error_code, stack_frame);
 }
