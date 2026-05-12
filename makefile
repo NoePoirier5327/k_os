@@ -30,5 +30,8 @@ iso:
 run:
 	qemu-system-x86_64 -cdrom bin/os.iso -no-reboot -serial stdio
 
+run-log:
+	qemu-system-x86_64 -drive format=raw,file=bin/os.iso -d int -D qemu.log -no-reboot
+
 clean:
 	rm bin/*
