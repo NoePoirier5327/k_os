@@ -12,7 +12,6 @@ pub mod interrupts;
 pub mod gdt;
 
 use core::panic::PanicInfo;
-use core::arch::asm;
 
 // "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve
 #[unsafe(no_mangle)]
@@ -34,9 +33,7 @@ fn panic(info: &PanicInfo) -> ! {
 // TODO le faire fonctionner pour d'autres architectures que le x86_64.
 fn hlt() -> ! {
     loop {
-        unsafe{
-            asm!("hlt", options(nomem, nostack, preserves_flags));
-        }
+        x86_64::instructions::hlt();
     }
 }
 
