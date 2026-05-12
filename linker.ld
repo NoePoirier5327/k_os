@@ -10,7 +10,17 @@ SECTIONS
     *(.text .text.*)
   }
 
-  .rodata : { *(.rodata .rodata.*) }
-  .data   : { *(.data .data.*) }
-  .bss    : { *(.bss .bss.*) }
+  .rodata : {
+    *(.rodata .rodata.*) 
+  }
+
+  .data : {
+    . = ALIGN(16); /* On force l'alignement du idt */
+    *(.data .data.*)
+  }
+
+  .bss : {
+    . = ALIGN(16); /* On force l'alignement du idt */
+    *(.bss .bss.*)
+  }
 }
