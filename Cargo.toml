@@ -24,3 +24,6 @@ version = "0.2.6"
 
 [dependencies.pic8259]
 version = "0.10.1"
+
+[dependencies.pc-keyboard]
+version = "0.7.0"
