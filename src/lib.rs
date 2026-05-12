@@ -20,23 +20,18 @@ pub extern "C" fn _start() -> ! {
     init();
     println!("Welcome to k_os.");
 
-    x86_64::instructions::interrupts::int3();
-
-    unsafe {
-        *(0xdeadbeef as *mut u64) = 42;
-    };
 
     hlt();
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
+    println!("\n{}", info);
     hlt();
 }
 
 /// Fonction d'arrêt du processeur en fonction du processeur.<br>
-/// TODO le faire fonctionner pour d'autres architectures que le x86_64.
+// TODO le faire fonctionner pour d'autres architectures que le x86_64.
 fn hlt() -> ! {
     loop {
         unsafe{
@@ -48,5 +43,16 @@ fn hlt() -> ! {
 /// Fonction d'initialisation des composantes de sécurité processeur comme la IDT.
 fn init() {
     gdt::init();
+
+    print!("IDT initialization ");
     interrupts::init_idt();
+    print!("(OK)\n");
+
+    print!("PICS initialization ");
+    unsafe { interrupts::PICS.lock().initialize() };
+    print!("(OK)\n");
+
+    print!("Enabling CPU interruption ");
+    x86_64::instructions::interrupts::enable();
+    print!("(OK)\n");
 }

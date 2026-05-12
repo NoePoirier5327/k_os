@@ -10,7 +10,7 @@ test = false
 doctest = false
 
 [dependencies]
-x86_64 = "0.15.4"
+x86_64 = "0.14.13"
 
 [dependencies.lazy_static]
 version = "1.0"
@@ -21,3 +21,6 @@ version = "0.5.2"
 
 [dependencies.volatile]
 version = "0.2.6"
+
+[dependencies.pic8259]
+version = "0.10.1"
