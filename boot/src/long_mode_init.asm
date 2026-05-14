@@ -95,7 +95,7 @@ error:
   mov byte  [0xb8004], al
   hlt
 
-section .bss
+section .padata
 align 4096
 p4_table: resb 4096
 p3_table: resb 4096

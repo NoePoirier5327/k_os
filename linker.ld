@@ -3,24 +3,54 @@ OUTPUT_FORMAT(elf64-x86-64)
 
 SECTIONS
 {
-  . = 1M; /* Chargement à 1 Mo */
+  /* On commence à 1 Mo, adresse standard pour Multiboot */
+  . = 1M;
 
-  .text : {
-    KEEP(*(.multiboot_header)) /* Force le header au début */
+  /* Section pour le Header Multiboot et le code de démarrage */
+  .text :
+  {
+    __text_start = .;
+    /* Le header doit être au tout début pour être trouvé par GRUB */
+    KEEP(*(.multiboot_header))
     *(.text .text.*)
+    . = ALIGN(4K);
+    __text_end = .;
   }
 
-  .rodata : {
-    *(.rodata .rodata.*) 
+  /* Données en lecture seule (constantes Rust, chaînes de caractères) */
+  .rodata :
+  {
+    __rodata_start = .;
+    *(.rodata .rodata.*)
+    . = ALIGN(4K);
+    __rodata_end = .;
   }
 
-  .data : {
-    . = ALIGN(16); /* On force l'alignement du idt */
+  /* Données initialisées (globales avec une valeur) */
+  .data :
+  {
+    __data_start = .;
     *(.data .data.*)
+    . = ALIGN(4K);
+    __data_end = .;
   }
 
-  .bss : {
-    . = ALIGN(16); /* On force l'alignement du idt */
+  /* Données non-initialisées (IDT, Tables de pages, Stack) */
+  .bss :
+  {
+    __bss_start = .;
     *(.bss .bss.*)
+    *(COMMON)
+    . = ALIGN(4K);
+    __bss_end = .;
   }
+
+  /* On place les tables de pages après la BSS */
+  .padata :
+  {
+    *(.padata)
+  }
+
+  /* Symbole global pour marquer la fin du noyau en mémoire physique */
+  __kernel_end = .;
 }
