@@ -19,7 +19,6 @@ pub extern "C" fn _start() -> ! {
     init();
     println!("Welcome to k_os.");
 
-
     hlt();
 }
 

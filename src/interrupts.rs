@@ -2,12 +2,13 @@
 //! Pour l'instant elle ne fonctionne qu'avec l'architecture x86-64. <br>
 // TODO Faire en sorte que ça fonctionne pour d'autres architectures.
 
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
 use spin;
 use crate::{println, print};
 use crate::gdt;
+use crate::hlt;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -61,6 +62,8 @@ lazy_static! {
         // Cependant, les ports USB sont émulés en ps2 donc pas de problème pour le moment.
 
         idt[InterruptIndex::Keyboard.to_usize()].set_handler_fn(keyboard_interrupt_handler);
+
+        idt.page_fault.set_handler_fn(page_fault_handler);
 
         idt
     };
@@ -131,8 +134,21 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     }
 
     unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Keyboard.to_u8());
+        PICS.lock().notify_end_of_interrupt(InterruptIndex::Keyboard.to_u8());
     }
 }
 
+/// Fonction de gestion des dépassements d'accès mémoire aussi appelé page fault.
+///
+/// # Arguments
+/// * `stack_frame` : Message d'erreur correspondant à la portion de la pile touchée.
+/// * `error_code` : code d'erreur correspondant au dépassement
+extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
+    use x86_64::registers::control::Cr2;
+
+    println!("EXCEPTION: page fault");
+    println!("Accessed Address: {:?}", Cr2::read());
+    println!("Error Code: {:?}", error_code);
+    println!("{:#?}", stack_frame);
+    hlt();
+}
