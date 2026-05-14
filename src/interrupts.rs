@@ -3,9 +3,8 @@
 // TODO Faire en sorte que ça fonctionne pour d'autres architectures.
 
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use lazy_static::lazy_static;
 use pic8259::ChainedPics;
-use spin;
+use spin::Lazy;
 use crate::{println, print};
 use crate::gdt;
 use crate::hlt;
@@ -41,33 +40,30 @@ impl InterruptIndex {
     }
 }
 
-lazy_static! {
-    static ref IDT: InterruptDescriptorTable = {
-        let mut idt = InterruptDescriptorTable::new();
+pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
+    let mut idt = InterruptDescriptorTable::new();
 
-        // On référence la fonction de gestion de breakpoint.
-        idt.breakpoint.set_handler_fn(breakpoint_handler);
+    // On référence la fonction de gestion de breakpoint.
+    idt.breakpoint.set_handler_fn(breakpoint_handler);
 
-        // On référence la fonction de gestion de double_fault et sa fonction de swap de pile.
-        unsafe {
-            idt.double_fault.set_handler_fn(double_fault_handler)
-                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
-        }
+    // On référence la fonction de gestion de double_fault et sa fonction de swap de pile.
+    unsafe {
+        idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
+    }
 
-        // On référence la fonction de gestion du timer.
-        idt[InterruptIndex::Timer.to_usize()].set_handler_fn(timer_interrupt_handler);
+    // On référence la fonction de gestion du timer.
+    idt[InterruptIndex::Timer.to_u8()].set_handler_fn(timer_interrupt_handler);
 
-        // On référence la fonction de gestion des entrées claviers.
-        // ATTENTION, pour l'instant on ne supporte que les ports ps2.
-        // Cependant, les ports USB sont émulés en ps2 donc pas de problème pour le moment.
+    // On référence la fonction de gestion des entrées claviers.
+    // ATTENTION, pour l'instant on ne supporte que les ports ps2.
+    // Cependant, les ports USB sont émulés en ps2 donc pas de problème pour le moment.
 
-        idt[InterruptIndex::Keyboard.to_usize()].set_handler_fn(keyboard_interrupt_handler);
+    idt[InterruptIndex::Keyboard.to_u8()].set_handler_fn(keyboard_interrupt_handler);
 
-        idt.page_fault.set_handler_fn(page_fault_handler);
+    idt.page_fault.set_handler_fn(page_fault_handler);
 
-        idt
-    };
-}
+    idt
+});
 
 pub fn init_idt() {
     IDT.load();
@@ -109,16 +105,17 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 /// # Argument
 /// * `stack_frame` : message d'interruption du clavier.
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
-    use spin::Mutex;
+    use pc_keyboard::{layouts, DecodedKey, PS2Keyboard, HandleControl, ScancodeSet1};
     use x86_64::instructions::port::Port;
+    use spin::Mutex;
 
-    lazy_static! {
-        static ref KEYBOARD: Mutex<Keyboard<layouts::Azerty, ScancodeSet1>> =
-            Mutex::new(Keyboard::new(ScancodeSet1::new(),
-                layouts::Azerty, HandleControl::Ignore)
-            );
-    }
+    static KEYBOARD: Lazy<spin::Mutex<PS2Keyboard<layouts::Azerty, ScancodeSet1>>> = Lazy::new(|| {
+        Mutex::new(PS2Keyboard::new(
+            ScancodeSet1::new(),
+            layouts::Azerty,
+            HandleControl::Ignore,
+        ))
+    });
 
     let mut keyboard = KEYBOARD.lock();
     let mut port = Port::new(0x60);

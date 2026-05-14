@@ -3,7 +3,7 @@
 //! <https://os.phil-opp.com/vga-text-mode/>
 
 use core::fmt;
-use lazy_static::lazy_static;
+use spin::Lazy;
 use spin::Mutex;
 use volatile::Volatile;
 
@@ -159,14 +159,16 @@ impl fmt::Write for Writer {
     }
 }
 
-lazy_static! {
-    /// Interface d'écriture global dans le buffer vga.
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+/// Interface d'ecriture globale dans le buffer vga. <br>
+/// Elle est chargée en tant que static à partir du moment où le processeur l'appelle
+/// et elle utilise une sémaphore pour bloquer son accès à chaques utilisations.
+pub static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
+    Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::LightGray, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    });
-}
+    })
+});
 
 /// Support de la macro print! de la librairie standard de rust.
 #[macro_export]

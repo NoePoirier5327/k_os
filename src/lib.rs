@@ -15,7 +15,7 @@ use core::panic::PanicInfo;
 
 // "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve
 #[unsafe(no_mangle)]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(multiboot_info_ptr : usize) -> ! {
     init();
     println!("Welcome to k_os.");
 
