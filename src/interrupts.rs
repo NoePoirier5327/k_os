@@ -1,5 +1,6 @@
 //! Fichier contenant l'implémentation de la gestion de la IDT.<br>
 //! Pour l'instant elle ne fonctionne qu'avec l'architecture x86-64. <br>
+//! Le code est majoritairement du tutoriel de Philipp Opermann.
 // TODO Faire en sorte que ça fonctionne pour d'autres architectures.
 
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};

@@ -1,4 +1,5 @@
 //! Implémentation d'un TSS pour la gestion de double fault.<br>
+//! Code majoritairement tiré du tutoriel de Philipp Opermann.
 // TODO Implémenter d'autres architectures que le x86_64.
 
 use x86_64::VirtAddr;
