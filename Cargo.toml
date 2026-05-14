@@ -10,6 +10,7 @@ test = false
 doctest = false
 
 [dependencies]
+multiboot2 = {version = "0.24.1", default-features = false}
 pc-keyboard = {version = "0.9.0"}
 pic8259 = {version = "0.11.0"}
 spin = {version = "0.10.0"}
