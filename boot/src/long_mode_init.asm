@@ -4,7 +4,10 @@ global start
 extern long_mode_start
 
 start:
+  cli
   mov esp, stack_top
+  ; On sauvegarde le pointeur donné par grub avant l'activation du long mode
+  push ebx
 
   call check_multiboot
   call check_cpuid
@@ -13,10 +16,20 @@ start:
   call setup_page_tables
   call enable_paging
 
+  ; On récupère le pointeur d'info de multiboot donné par grub
+  pop edi
+
   ; Charger la GDT 64 bits
   lgdt [gdt64.pointer]
-  jmp gdt64.code:long_mode_start
+  jmp gdt64.code:init_64bit
 
+; Trampoline pour s'assurer le passage en mode 64 bits avant le saut vers le kernel
+[bits 64]
+init_64bit:
+  extern long_mode_start
+  jmp long_mode_start
+
+[bits 32]
 ; --- Vérifications de sécurité ---
 check_multiboot:
   cmp eax, 0x36d76289
@@ -45,6 +58,11 @@ check_long_mode:
 
 ; --- Configuration de la Pagination (Identity Mapping) ---
 setup_page_tables:
+  ; On fait pointer la 511ème entrée de P4 vers P4 elle-même
+  mov eax, p4_table
+  or eax, 0b11 ; present + writable
+  mov [p4_table + 511 * 8], eax
+
   ; Pointer la PML4 vers la PDPT
   mov eax, p3_table
   or eax, 0b11 ; present + writable
@@ -58,11 +76,11 @@ setup_page_tables:
   ; Mapper chaque entrée de la PD vers une page de 2Mo
   mov ecx, 0
 .map_p2_table:
-  mov eax, 0x200000  ; 2Mo
+  mov eax, 0x200000
   mul ecx
-  or eax, 0b10000011 ; present + writable + huge
+  or eax, 0b10000011
   mov [p2_table + ecx * 8], eax
-
+  mov [p2_table + ecx * 8 + 4], edx 
   inc ecx
   cmp ecx, 512
   jne .map_p2_table
@@ -88,6 +106,17 @@ enable_paging:
   mov eax, cr0
   or eax, 1 << 31
   mov cr0, eax
+
+  ; Afichage du message de réussite
+  mov dword [0xb8000], 0x2f502f41 ; PA
+  mov dword [0xb8002], 0x2f472f49 ; GI
+  mov dword [0xb8004], 0x2f4e2f47 ; NG
+  mov dword [0xb8006], 0x2f202f45 ;  E
+  mov dword [0xb8008], 0x2f4e2f41 ; NA
+  mov dword [0xb800a], 0x2f422f4c ; BL
+  mov dword [0xb800c], 0x2f452f44 ; ED
+
+  ; Retour à l'appelant
   ret
 
 error:
@@ -95,21 +124,27 @@ error:
   mov byte  [0xb8004], al
   hlt
 
+; Section de paging contenant notemment la IDT
 section .padata
 align 4096
-p4_table: resb 4096
-p3_table: resb 4096
-p2_table: resb 4096
-stack_bottom: resb 4096*4 ; 16 ko de pile
+global p4_table
+global stack_top
+
+p4_table: times 4096 db 0
+p3_table: times 4096 db 0
+p2_table: times 4096 db 0
+stack_bottom: times 16384 db 0
 stack_top:
 
+; Section en lecture seule
 section .rodata
+align 8
 gdt64:
   dq 0 ; null entry
 .code: equ $ - gdt64
-  dq (1<<43) | (1<<44) | (1<<47) | (1<<53) ; code segment
+  dq (1<<43) | (1<<44) | (1<<47) | (1<<53) ; code segment (64-bit, present, code)
 .pointer:
   dw $ - gdt64 - 1
-  dq gdt64
+  dq gdt64 
 
 section .note.GNU-stack noalloc noexec nowrite progbits

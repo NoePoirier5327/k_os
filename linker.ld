@@ -17,6 +17,12 @@ SECTIONS
     __text_end = .;
   }
 
+  . = ALIGN(4K);
+  .padata :
+  {
+    *(.padata)
+  }
+
   /* Données en lecture seule (constantes Rust, chaînes de caractères) */
   .rodata :
   {
@@ -43,12 +49,6 @@ SECTIONS
     *(COMMON)
     . = ALIGN(4K);
     __bss_end = .;
-  }
-
-  /* On place les tables de pages après la BSS */
-  .padata :
-  {
-    *(.padata)
   }
 
   /* Symbole global pour marquer la fin du noyau en mémoire physique */

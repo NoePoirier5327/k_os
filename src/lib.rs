@@ -10,14 +10,47 @@
 pub mod vga_buffer;
 pub mod interrupts;
 pub mod gdt;
+pub mod memory;
 
 use core::panic::PanicInfo;
+use multiboot2::{BootInformation, BootInformationHeader};
+use memory::active_level_4_table;
 
-// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve
+/// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
+/// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
+///
+/// # Argument
+/// * `multiboot_info_ptr` : pointeur multiboot2 permettant la cartographie de la mémoire pour être utilisé par le noyau ensuite.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(multiboot_info_ptr : usize) -> ! {
+pub extern "C" fn _start(multiboot_info_ptr : u64) -> ! {
+    // Vérification du format du pointeur multiboot.
+    if !multiboot_info_ptr.is_multiple_of(8) {
+        println!("WARNING: Unaligned multiboot pointer.");
+    }
+
+    if multiboot_info_ptr == 0 {
+        println!("ERROR: The multiboot2 info pointer is NULL.");
+    }
+
+    println!("INFO: Multiboot2 info pointer = {}", multiboot_info_ptr);
+
+    // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
+    let boot_info = unsafe { BootInformation::load(multiboot_info_ptr as *const BootInformationHeader).unwrap() };
+    let memory_map_tag = boot_info.memory_map_tag().expect("Memory map tag required");
+
+    // Initialisation des composantes du noyau.
     init();
     println!("Welcome to k_os.");
+
+    let l4_table = unsafe { active_level_4_table() };
+
+    // Doit afficher à l'utilisateur que la portion mémoire de la table accédée est accessible en
+    // écriture
+    for (i, entry) in l4_table.iter().enumerate() {
+        if !entry.is_unused() {
+            println!("L4 Entry {}: {:?}", i, entry);
+        }
+    }
 
     hlt();
 }
@@ -36,7 +69,7 @@ fn hlt() -> ! {
     }
 }
 
-/// Fonction d'initialisation des composantes de sécurité processeur comme la IDT.
+/// Fonction d'initialisation des composantes du noyau comme la table d'interrutions et les ports x86_64
 fn init() {
     gdt::init();
 
