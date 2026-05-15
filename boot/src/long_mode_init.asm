@@ -59,14 +59,16 @@ check_long_mode:
 ; --- Configuration de la Pagination (Identity Mapping) ---
 setup_page_tables:
   ; On fait pointer la 511ème entrée de P4 vers P4 elle-même
-  mov eax, p4_table
-  or eax, 0b11 ; present + writable
-  mov [p4_table + 511 * 8], eax
+  ;mov eax, p4_table
+  ;or eax, 0b11 ; present + writable
+  ;mov [p4_table + 511 * 8], eax
 
   ; Pointer la PML4 vers la PDPT
   mov eax, p3_table
   or eax, 0b11 ; present + writable
-  mov [p4_table], eax
+  mov [p4_table], eax 
+
+  mov [p4_table + 2048], eax   ; Entrée 256 de P4 -> P3
 
   ; Pointer la PDPT vers la PD
   mov eax, p2_table

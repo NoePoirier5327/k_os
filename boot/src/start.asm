@@ -30,8 +30,8 @@ long_mode_start:
   mov al, 0
   rep stosb
 
-  ; on passe l'adresse de la structure multiboot à rust
-  pop rdi
+  pop rdi                     ; 1er argument : multiboot_info_ptr
+  mov rsi, 0xffff800000000000 ; 2eme argument : physical_memory_offset
   call _start
   hlt
 
