@@ -78,7 +78,7 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
             .flush(); // On vide le TLB (cache du CPU) pour que le changement soit immédiat
     }
 
-    println!("Mapping successed !");
+    println!("Mapping succeeded !");
     println!("Trying to write to physical allocated frame.");
 
     // 5. Écriture et Lecture
