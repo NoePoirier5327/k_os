@@ -12,7 +12,6 @@ use x86_64::VirtAddr;
 use x86_64::PhysAddr;
 
 use multiboot2::MemoryMapTag;
-use multiboot2::MemoryArea;
 
 // Adresses de début et fin du kernel.
 extern "C" {
@@ -50,16 +49,19 @@ impl BootInfoFrameAllocator {
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
         // On récupère les zones disponibles de la mémoire.
         let regions = self.memory_map.memory_areas();
-        let usable_regions = regions.iter().filter(|r| r.typ() == multiboot2::MemoryAreaType::Available);
+        let usable_regions = regions.iter().filter(|r| {
+            r.typ() == multiboot2::MemoryAreaType::Available
+        });
 
-        // On transforme chaques régions en une suite de bloque de 4Ko.
         usable_regions.flat_map(|r| {
             let frame_addresses = (r.start_address()..r.end_address()).step_by(4096);
             frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
         }).filter(|frame| {
-            let start = unsafe { &__kernel_start as *const u8 as u64 };
-            let end = unsafe { &__kernel_end as *const u8 as u64 };
-            // On ne garde que les bloques mémoire qui ne sont pas dans le noyau
+            // Utilisation sécurisée de addr_of! pour éviter de créer des références invalides
+            let start = core::ptr::addr_of!(__kernel_start) as u64;
+            let end = core::ptr::addr_of!(__kernel_end) as u64;
+            
+            // On ne garde que les blocs mémoire qui ne sont pas dans le noyau
             frame.start_address().as_u64() < start || frame.start_address().as_u64() > end
         })
     }

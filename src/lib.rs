@@ -15,7 +15,7 @@ pub mod memory;
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
-use x86_64::structures::paging::PageTable;
+use x86_64::structures::paging::{Page, PageTableFlags, FrameAllocator, Mapper};
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
@@ -54,6 +54,42 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     // Initialisation des composantes du noyau.
     init();
     println!("Welcome to k_os.");
+
+    println!("Memory allocation test.");
+
+    // 1. On choisit une adresse virtuelle arbitraire (hors du noyau)
+    let virtual_page = Page::containing_address(VirtAddr::new(0x0000_1234_5678_9000));
+
+    // 2. On demande une frame physique libre
+    let physical_frame = frame_allocator
+        .allocate_frame()
+        .expect("ERROR : Impossible to allocate a memory frame.");
+    
+    println!("Physical frame adress : {:?}", physical_frame.start_address());
+
+    // 3. On définit les permissions (Présente en mémoire + Autorisée en Écriture)
+    let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+
+    // 4. On effectue le mapping
+    unsafe {
+        mapper
+            .map_to(virtual_page, physical_frame, flags, &mut frame_allocator)
+            .expect("ERROR : Failed to map the memory.")
+            .flush(); // On vide le TLB (cache du CPU) pour que le changement soit immédiat
+    }
+
+    println!("Mapping successed !");
+    println!("Trying to write to physical allocated frame.");
+
+    // 5. Écriture et Lecture
+    // On transforme l'adresse virtuelle en pointeur brut pour y écrire une valeur
+    let ptr = virtual_page.start_address().as_mut_ptr::<u64>();
+    unsafe {
+        *ptr = 0xCAFE_BABE_1337_2026; // Écriture
+        println!("Reading mapped zone : {:#x}", *ptr); // Lecture
+    }
+
+    println!("Succeeded to read and write in mapped memory.");
 
     hlt();
 }
