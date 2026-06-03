@@ -2,6 +2,8 @@
 //! Code tiré du tutoriel de Philipp Opermann.<br>
 //! <https://os.phil-opp.com/vga-text-mode/>
 
+// TODO Gérer l'affichage des accents de UTF-8 vers CP437
+
 use core::fmt;
 use spin::Lazy;
 use spin::Mutex;
