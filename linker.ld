@@ -6,6 +6,9 @@ SECTIONS
   /* On commence à 1 Mo, adresse standard pour Multiboot */
   . = 1M;
 
+  /* Symbole global pour marquer le début du noyau en mémoire physique. */
+  __kernel_start = .;
+
   /* Section pour le Header Multiboot et le code de démarrage */
   .text :
   {
