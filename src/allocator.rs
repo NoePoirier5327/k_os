@@ -2,7 +2,7 @@
 //! Code tiré du tutoriel de Philipp Opermann
 
 pub mod bump;
-use bump::BumpAllocator;
+pub mod linked_list;
 
 use x86_64::VirtAddr;
 use x86_64::structures::paging::mapper::MapToError;
@@ -10,7 +10,7 @@ use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, S
 
 
 #[global_allocator]
-static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+static ALLOCATOR: Locked<linked_list::LinkedListAllocator> = Locked::new(linked_list::LinkedListAllocator::new());
 
 
 // Information de délimitation de la zone virtuelle du tas.
