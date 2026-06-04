@@ -1,6 +1,8 @@
 //! Implémentation d'un alloueur sur le tas. <br>
 //! Code tiré du tutoriel de Philipp Opermann
 
+pub mod bump;
+
 use alloc::alloc::{GlobalAlloc, Layout};
 use x86_64::VirtAddr;
 use x86_64::structures::paging::mapper::MapToError;
@@ -56,5 +58,24 @@ unsafe impl GlobalAlloc for Dummy {
 
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
         panic!("ERROR : dealloc should never be manually called.")
+    }
+}
+
+/// Interface de spin::Mutex pour permettre l'implémentation de trait pour cette dernière.
+pub struct Locked<A> {
+    inner: spin::Mutex<A>,
+}
+
+impl<A> Locked<A> {
+    /// Constructeur d'un Mutex pour une ressource en paramètre.
+    pub const fn new(inner: A) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    /// Méthode de bloquage du verrou mémoire sur la donnée de l'interface.
+    pub fn lock(&self) -> spin::MutexGuard<A> {
+        self.inner.lock()
     }
 }
