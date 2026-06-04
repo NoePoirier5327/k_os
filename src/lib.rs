@@ -7,15 +7,19 @@
 
 #![feature(abi_x86_interrupt)]
 
+extern crate alloc;
+
 pub mod vga_buffer;
 pub mod interrupts;
 pub mod gdt;
 pub mod memory;
+pub mod allocator;
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
-use x86_64::structures::paging::{Translate};
+use alloc::boxed::Box;
+
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
@@ -51,26 +55,15 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
     let mut mapper = unsafe { memory::init(offset) };
 
+    // Allocation de la zone du tas.
+    allocator::init_heap(&mut mapper, &mut frame_allocator)
+        .expect("ERROR : Heap initialization failed.");
+
     // Initialisation des composantes du noyau.
     init();
     println!("Welcome to k_os.");
 
-    let addresses = [
-        // Buffer VGA
-        0xb8000,
-        // Page de code
-        0x201008,
-        // Page de pile
-        0x0100_0020_1a10,
-        // Adresse virtuelle mapé à l'adresse 0
-        physical_memory_offset,
-    ];
-
-    for &address in &addresses {
-        let virt = VirtAddr::new(address);
-        let phys = mapper.translate_addr(virt);
-        println!("{:?} -> {:?}", virt, phys);
-    }
+    let a = Box::new(41);
 
     hlt();
 }
