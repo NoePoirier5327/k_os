@@ -3,14 +3,16 @@
 
 pub mod bump;
 pub mod linked_list;
+pub mod fixed_size_block;
 
 use x86_64::VirtAddr;
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
+use fixed_size_block::FixedSizeBlockAllocator;
 
 
 #[global_allocator]
-static ALLOCATOR: Locked<linked_list::LinkedListAllocator> = Locked::new(linked_list::LinkedListAllocator::new());
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
 
 
 // Information de délimitation de la zone virtuelle du tas.
