@@ -5,5 +5,5 @@ target = "x86_64-unknown-none"
 rustflags = ["-C", "link-arg=-Tlinker.ld"]
 
 [unstable]
-build-std = ["core", "compiler_builtins"] # On empêche de lier la crate test
+build-std = ["core", "compiler_builtins", "alloc"] # On empêche de lier la crate test
 build-std-features = ["compiler-builtins-mem"]
