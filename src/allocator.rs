@@ -2,12 +2,16 @@
 //! Code tiré du tutoriel de Philipp Opermann
 
 pub mod bump;
+use bump::BumpAllocator;
 
-use alloc::alloc::{GlobalAlloc, Layout};
 use x86_64::VirtAddr;
 use x86_64::structures::paging::mapper::MapToError;
 use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
-use core::ptr::null_mut;
+
+
+#[global_allocator]
+static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+
 
 // Information de délimitation de la zone virtuelle du tas.
 pub const HEAP_START: usize = 0x_4444_4444_0000;
@@ -42,24 +46,21 @@ pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>, frame_allocator: &mut impl 
         };
     }
 
+    // On initialise correctement l'allocateur.
+    unsafe {
+        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
+    }
+
     Ok(())
 }
 
 
-#[global_allocator]
-static ALLOCATOR: Dummy = Dummy;
-
-pub struct Dummy;
-
-unsafe impl GlobalAlloc for Dummy {
-    unsafe fn alloc(&self, _layout: Layout) -> *mut u8 {
-        null_mut()
-    }
-
-    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
-        panic!("ERROR : dealloc should never be manually called.")
-    }
+/// Renvoie l'adresse en paramètre alignée vers le haut avec le reste des adresses. <br>
+/// Le paramètre align doit être une puissance de 2.
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
 }
+
 
 /// Interface de spin::Mutex pour permettre l'implémentation de trait pour cette dernière.
 pub struct Locked<A> {

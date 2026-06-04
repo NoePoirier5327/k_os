@@ -19,6 +19,9 @@ use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
+use alloc::vec;
+use alloc::rc::Rc;
 
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
@@ -41,6 +44,9 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     println!("INFO: Multiboot2 info pointer = {}", multiboot_info_ptr);
     println!("INFO: Physical memory offset = {}", physical_memory_offset);
 
+    // On initialise les composantes du kernel
+    init();
+
     // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
     let boot_info = unsafe { BootInformation::load(multiboot_info_ptr as *const BootInformationHeader).unwrap() };
     let memory_map_tag = unsafe {
@@ -59,11 +65,23 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("ERROR : Heap initialization failed.");
 
-    // Initialisation des composantes du noyau.
-    init();
     println!("Welcome to k_os.");
 
-    let a = Box::new(41);
+    let heap_value = Box::new(41);
+    println!("Dynamicaly allocated number on the heap : {}", heap_value);
+
+    let mut heap_vec : Vec<usize> = Vec::new();
+    for i in 0..500 {
+        heap_vec.push(i);
+    }
+    
+    println!("Dynamicaly allocated vector on the heap : {:p}", heap_vec.as_slice());
+
+    let reference_counted = Rc::new(vec![0, 1, 2]);
+    let cloned_reference = reference_counted.clone();
+    println!("Current counted reference : {}", Rc::strong_count(&cloned_reference));
+    core::mem::drop(reference_counted);
+    println!("Counted reference is now : {}", Rc::strong_count(&cloned_reference));
 
     hlt();
 }
