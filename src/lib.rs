@@ -20,7 +20,6 @@ use scheduler::SCHEDULER;
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
-use spin::mutex::Mutex;
 
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
