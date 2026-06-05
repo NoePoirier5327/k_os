@@ -32,14 +32,6 @@ impl InterruptIndex {
     fn to_u8(self) -> u8 {
         self as u8
     }
-
-    /// Fonction de transtypage du type InterruptIndex en usize.
-    ///
-    /// # Return
-    /// usize correspondant au InterruptIndex courant.
-    fn to_usize(self) -> usize {
-        usize::from(self.to_u8())
-    }
 }
 
 pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
