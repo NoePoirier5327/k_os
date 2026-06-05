@@ -66,8 +66,37 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     idt
 });
 
+
+/// Initialise la table d'interruption processeur.
 pub fn init_idt() {
     IDT.load();
+    unsafe {
+        configure_pit();
+    }
+}
+
+/// Fonction de configuration des interruptions processeurs. <br>
+/// Cadence les interruptions à 10 ms.
+///
+/// # Safety
+/// Ne doit être appelée qu'une seule fois.
+unsafe fn configure_pit() {
+    let frequency = 100; // 100 Hz
+    let divisor = 1193182 / frequency;
+
+    use x86_64::instructions::port::Port;
+
+    // Port de commande du PIT
+    let mut cmd_port = Port::new(0x43);
+    // Port de données du Canal 0 du PIT
+    let mut data_port = Port::new(0x40);
+
+    // 0x36 = Mode 3 (Square Wave Generator), Canal 0, accès bas/haut octet
+    cmd_port.write(0x36u8);
+    
+    // Envoyer le diviseur (octet bas puis octet haut)
+    data_port.write((divisor & 0xFF) as u8);
+    data_port.write(((divisor >> 8) & 0xFF) as u8);
 }
 
 /// Fonction gérant les interruptions de séquences qui ne nécessite pas de code d'erreur.<br>

@@ -14,14 +14,14 @@ pub mod interrupts;
 pub mod gdt;
 pub mod memory;
 pub mod allocator;
+pub mod thread;
+
+use thread::{Thread, swap_threads};
 
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
-use alloc::boxed::Box;
-use alloc::vec::Vec;
-use alloc::vec;
-use alloc::rc::Rc;
+use spin::mutex::Mutex;
 
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
@@ -67,21 +67,28 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
     println!("Welcome to k_os.");
 
-    let heap_value = Box::new(41);
-    println!("Dynamicaly allocated number on the heap : {}", heap_value);
-
-    let mut heap_vec : Vec<usize> = Vec::new();
-    for i in 0..500 {
-        heap_vec.push(i);
+    // Test du swap de threads
+    fn test1() {
+        for i in 0..500 {
+            print!("{}", i);
+        }
+        println!();
     }
-    
-    println!("Dynamicaly allocated vector on the heap : {:p}", heap_vec.as_slice());
 
-    let reference_counted = Rc::new(vec![0, 1, 2]);
-    let cloned_reference = reference_counted.clone();
-    println!("Current counted reference : {}", Rc::strong_count(&cloned_reference));
-    core::mem::drop(reference_counted);
-    println!("Counted reference is now : {}", Rc::strong_count(&cloned_reference));
+    fn test2() {
+        for i in 100..800 {
+            print!("{}", i);
+        }
+        println!();
+    }
+
+    let test1_addr = test1 as *const () as usize;
+    let test2_addr = test2 as *const () as usize;
+    let thread1 : Mutex<Thread> = Mutex::new(Thread::new(1, test1_addr, 16384));
+    let thread2 : Mutex<Thread> = Mutex::new(Thread::new(2, test2_addr, 16384));
+
+    swap_threads(&thread1, &thread2);
+    swap_threads(&thread1, &thread2);
 
     hlt();
 }

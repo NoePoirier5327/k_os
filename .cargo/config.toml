@@ -1,5 +1,6 @@
 [build]
 target = "x86_64-unknown-none"
+features = ["-mmx", "-sse", "-sse2", "-avx", "-avx2", "-red-zone"]
 
 [target.x86_64-unknown-none]
 rustflags = ["-C", "link-arg=-Tlinker.ld"]
