@@ -7,6 +7,7 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, Pag
 use pic8259::ChainedPics;
 use spin::Lazy;
 use crate::{println, print};
+use crate::scheduler::SCHEDULER;
 use crate::gdt;
 use crate::hlt;
 
@@ -124,6 +125,9 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
 /// * `stack_frame` : message d'interruption du timer.
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     //print!(".");
+    // On cadence le yield de l'ordonnanceur sur le timer processeur.
+    SCHEDULER.lock().schedule();
+
     unsafe {
       PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
     }

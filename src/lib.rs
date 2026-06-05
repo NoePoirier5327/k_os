@@ -14,10 +14,9 @@ pub mod interrupts;
 pub mod gdt;
 pub mod memory;
 pub mod allocator;
-pub mod thread;
+pub mod scheduler;
 
-use thread::{Thread, swap_threads};
-
+use scheduler::SCHEDULER;
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
@@ -82,13 +81,8 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
         println!();
     }
 
-    let test1_addr = test1 as *const () as usize;
-    let test2_addr = test2 as *const () as usize;
-    let thread1 : Mutex<Thread> = Mutex::new(Thread::new(1, test1_addr, 16384));
-    let thread2 : Mutex<Thread> = Mutex::new(Thread::new(2, test2_addr, 16384));
-
-    swap_threads(&thread1, &thread2);
-    swap_threads(&thread1, &thread2);
+    SCHEDULER.lock().spawn(test1);
+    SCHEDULER.lock().spawn(test2);
 
     hlt();
 }
