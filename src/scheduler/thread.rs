@@ -131,6 +131,10 @@ fn thread_exit() -> ! {
 /// # Arguments
 /// * `old_thread` : pointeur vers la pile du thread sortant.
 /// * `new_thread` : pointeur vers la pile du thread prenant la main.
+///
+/// # Safety
+/// L'appelant doit s'assurer que les piles qu'il est train d'échanger ne sont pas
+/// corrompus, auquel cas, il est responsable des fautes processeurs que cela entraînera.
 #[unsafe(naked)]
 pub unsafe extern "C" fn swap_context(old_thread : *mut u64, new_thread : u64) {
     // Pour info, selon la convention standard de rust (system V AMD64 ABI),
