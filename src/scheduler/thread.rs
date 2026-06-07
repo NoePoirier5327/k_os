@@ -1,5 +1,4 @@
 //! Implémentation d'un multitasking coopératif kernel level.
-// TODO le rendre préemptif.
 // TODO Implémenter le multithreading pour d'autres architextures.
 
 use crate::println;
