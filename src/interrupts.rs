@@ -118,7 +118,9 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
     //print!(".");
     // On cadence le yield de l'ordonnanceur sur le timer processeur.
+    x86_64::instructions::interrupts::disable();
     SCHEDULER.lock().schedule();
+    x86_64::instructions::interrupts::enable();
 
     unsafe {
       PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
