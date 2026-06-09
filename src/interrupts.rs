@@ -7,7 +7,6 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, Pag
 use pic8259::ChainedPics;
 use spin::Lazy;
 use crate::{println, print};
-use crate::scheduler::SCHEDULER;
 use crate::gdt;
 use crate::hlt;
 

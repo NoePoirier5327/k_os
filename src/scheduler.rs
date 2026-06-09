@@ -1,8 +1,7 @@
-//! Implémentation d'un ordonnanceur de threads mémoire.
+//! Implémentation d'un ordonnanceur de threads mémoire correspondant 
+//! à l'algorithme Round Robin.
 
 pub mod thread;
-
-use core::mem::swap;
 
 use thread::{Thread, ThreadId, ThreadState, swap_context};
 use alloc::collections::VecDeque;

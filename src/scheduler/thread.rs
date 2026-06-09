@@ -1,4 +1,4 @@
-//! Implémentation d'un multitasking coopératif kernel level.
+//! Implémentation d'un multitasking préemptif kernel level.
 // TODO Implémenter le multithreading pour d'autres architextures.
 
 //use crate::println;
@@ -64,8 +64,9 @@ impl Thread {
 
             // On simule le stockage de registre processeur dans la pile
             // privée du tas.
-            let num_registers = 6; 
-            rsp = (stack_ptr as u64) - (num_registers * 8);
+            let num_registers = 8; 
+            stack_ptr = stack_ptr.offset(-num_registers);
+            rsp = stack_ptr as u64;
         }
 
         Self {
@@ -139,18 +140,12 @@ fn thread_exit() -> ! {
 #[unsafe(naked)]
 extern "C" fn trampoline() {
     naked_asm!(
-        // On sauvegarde la fonction cible le temps des manipulations.
-        "mov r12, [rsp]",
-
-        // On dépile entry_point.
-        "add rsp, 8",
-
         // On termine le traitement du tick courant.
         "call {notify_timer}",
         "sti",
 
         // On saute vers la fonction cible du thread
-        "jmp r12",
+        "ret",
         notify_timer = sym notify_timer_handler
     )
 }
@@ -192,12 +187,22 @@ pub unsafe extern "C" fn swap_context(old_thread : *mut u64, new_thread : u64) {
         "push r13",
         "push r14",
         "push r15",
+        
+        "mov ecx, 0xC0000101", // IA32_GS_BASE MSR
+        "rdmsr",
+        "push rdx",
+        "push rax",
 
         // On stock le pointeur de pile courant dans la pile du thread sortant.
         "mov [rdi], rsp",
 
         // On récupère le pointeur de pile du thread entrant.
         "mov rsp, rsi",
+
+        "pop rax",
+        "pop rdx",
+        //"mov ecx, 0xC0000101",
+        "wrmsr",
 
         // On récupère les registres d'executions du thread entrant.
         "pop r15",

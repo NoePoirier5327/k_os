@@ -68,12 +68,16 @@ setup_page_tables:
   or eax, 0b11 ; present + writable
   mov [p4_table], eax 
 
-  mov [p4_table + 2048], eax   ; Entrée 256 de P4 -> P3
+  ; On pointe l'entrée 256 de la P4 vers le haut de la p3
+  mov eax, p3_higher_table
+  or eax, 0b11
+  mov [p4_table + 256 * 8], eax   ; Entrée 256 de P4 -> P3
 
-  ; Pointer la PDPT vers la PD
+  ; On pointe les tables p3 vers vers notre p2
   mov eax, p2_table
   or eax, 0b11
   mov [p3_table], eax
+  mov [p3_higher_table], eax
 
   ; Mapper chaque entrée de la PD vers une page de 2Mo
   mov ecx, 0
@@ -133,7 +137,8 @@ global p4_table
 global stack_top
 
 p4_table: times 4096 db 0
-p3_table: times 4096 db 0
+p3_table: times 4096 db 0 ; Pour la partie basse de la table p3
+p3_higher_table: times 4096 db 0 ; Pour la partie haute
 p2_table: times 4096 db 0
 stack_bottom: times 16384 db 0
 stack_top:
