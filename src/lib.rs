@@ -76,21 +76,33 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
     // Test du swap de threads
     fn test1() {
-        for i in 0..500 {
-            print!("{}", i);
+        for _ in 0..500 {
+            println!("Kijetesantakalu");
         }
-        println!();
     }
 
     fn test2() {
-        for i in 100..800 {
-            print!("{}", i);
+        for _ in 0..500 {
+            println!("li");
         }
-        println!();
+    }
+
+    fn test3() {
+        for _ in 0..500 {
+            println!("tawa");
+        }
+    }
+    
+    fn test4() {
+        for _ in 0..500 {
+            println!("sike.");
+        }
     }
 
     SCHEDULER.lock().spawn(test1);
     SCHEDULER.lock().spawn(test2);
+    SCHEDULER.lock().spawn(test3);
+    SCHEDULER.lock().spawn(test4);
 
     hlt();
 }
