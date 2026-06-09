@@ -25,13 +25,13 @@ iso:
 	cp boot/grub/grub.cfg bin/isofiles/boot/grub/
 	
 	# Création de l'image ISO
-	grub-mkrescue -o bin/os.iso bin/isofiles
+	grub-mkrescue -o bin/k_os.iso bin/isofiles
 
 run:
-	qemu-system-x86_64 -cdrom bin/os.iso -no-reboot -serial stdio
+	qemu-system-x86_64 -cdrom bin/k_os.iso -no-reboot -serial stdio
 
 run-log:
-	qemu-system-x86_64 -drive format=raw,file=bin/os.iso -d int,cpu_reset -D qemu.log -no-reboot
+	qemu-system-x86_64 -drive format=raw,file=bin/k_os.iso -d int,cpu_reset -D qemu.log -no-reboot
 
 clean:
 	rm bin/*
