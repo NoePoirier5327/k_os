@@ -1,7 +1,8 @@
 //! Implémentation d'un multitasking coopératif kernel level.
 // TODO Implémenter le multithreading pour d'autres architextures.
 
-use crate::println;
+//use crate::println;
+use crate::interrupts::{PICS, InterruptIndex};
 use super::SCHEDULER;
 use alloc::boxed::Box;
 use alloc::vec;
@@ -37,9 +38,9 @@ impl Thread {
     ///
     /// # Arguments
     /// * `id` : identifiant du thread à créer.
-    /// * `entry_point_addr` : adresse de la fonction à associer au thread à créer.
+    /// * `entry_point_adr` : adresse de la fonction à associer au thread à créer.
     /// * `stack_size` : taille du stack à allouer à l'execution du processus du thread.
-    pub fn new(id : ThreadId, entry_point_addr : usize, stack_size : usize) -> Self {
+    pub fn new(id : ThreadId, entry_point_adr : usize, stack_size : usize) -> Self {
         // On créer une pile vide remplie de 0.
         let stack = vec![0u8; stack_size].into_boxed_slice();
         let stack_base = stack.as_ptr() as u64;
@@ -48,13 +49,18 @@ impl Thread {
         unsafe {
             let mut stack_ptr = rsp as *mut u64;
 
-            // On place la fonction de fin de thread.
+            // On place la fonction de fin de thread en haut de la pile.
             stack_ptr = stack_ptr.offset(-1);
             stack_ptr.write(thread_exit as *const () as u64);
 
-            // On place l'adresse de retourne tout en haut de la pile.
+            // Puis la fonction que thread doit executer.
             stack_ptr = stack_ptr.offset(-1);
-            stack_ptr.write(entry_point_addr as u64);
+            stack_ptr.write(entry_point_adr as u64);
+
+            // Enfin, le trampoline que le nouveau thread doit emprunter.
+            stack_ptr = stack_ptr.offset(-1);
+            let trampoline_adr = trampoline as *const () as usize;
+            stack_ptr.write(trampoline_adr as u64);
 
             // On simule le stockage de registre processeur dans la pile
             // privée du tas.
@@ -111,19 +117,50 @@ impl Thread {
 /// Cette fonction peut paniquer quand le thread auquel elle est attachée est
 /// toujours vivant après que l'ordonnanceur l'ai forcé à être déalloué.
 fn thread_exit() -> ! {
-    println!("INFO : Current thread finished its job.");
+    //println!("INFO : Current thread finished its job.");
 
-    // On tue le thread appelant.
-    let mut scheduler = SCHEDULER.lock();
-    if let Some(current_thread_mutex) = scheduler.get_current_thread_mut() {
-        current_thread_mutex.kill();
-    }
+    {
+        // On tue le thread appelant.
+        let mut scheduler = SCHEDULER.lock();
+        if let Some(current_thread_mutex) = scheduler.get_current_thread_mut() {
+            current_thread_mutex.kill();
+        }
+    } // Le mutex est libéré ici
 
     // Puis, on force le passage au thread suivant.
-    scheduler.schedule();
+    super::schedule();
 
     // Sécurité au cas ou il y a un problème.
     panic!("ERROR : From this point, I should be dead, something wrong might have happened.");
+}
+
+/// Fonction de trampoline permettant de réactiver les interruptions processeur et envoyer le signal
+/// de fin d'interruption courante pour un thread qui vient juste d'être créé.
+#[unsafe(naked)]
+extern "C" fn trampoline() {
+    naked_asm!(
+        // On sauvegarde la fonction cible le temps des manipulations.
+        "mov r12, [rsp]",
+
+        // On dépile entry_point.
+        "add rsp, 8",
+
+        // On termine le traitement du tick courant.
+        "call {notify_timer}",
+        "sti",
+
+        // On saute vers la fonction cible du thread
+        "jmp r12",
+        notify_timer = sym notify_timer_handler
+    )
+}
+
+/// Permet de signaler qu'on a fini de traiter le thread courant sans le faire à la main en
+/// assembleur.
+extern "C" fn notify_timer_handler() {
+    unsafe {
+        PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
+    }
 }
 
 /// Intervertit le contexte d'execution de deux threads.

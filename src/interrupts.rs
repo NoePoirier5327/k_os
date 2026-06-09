@@ -29,7 +29,7 @@ impl InterruptIndex {
     ///
     /// # Return
     /// u8 correspondant à l'instance de InterruptIndex courante.
-    fn to_u8(self) -> u8 {
+    pub fn to_u8(self) -> u8 {
         self as u8
     }
 }
@@ -119,7 +119,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     //print!(".");
     // On cadence le yield de l'ordonnanceur sur le timer processeur.
     x86_64::instructions::interrupts::disable();
-    SCHEDULER.lock().schedule();
+    crate::scheduler::schedule();
     x86_64::instructions::interrupts::enable();
 
     unsafe {

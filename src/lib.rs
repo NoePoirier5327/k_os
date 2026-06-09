@@ -22,6 +22,12 @@ use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
 
 
+extern "C" {
+    static __kernel_start : u8;
+    static __kernel_end : u8;
+}
+
+
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
 ///
@@ -30,6 +36,9 @@ use x86_64::VirtAddr;
 /// * `physical_memory_offset` : indice de décalage de pagination mémoire, envoyé depuis l'assembleur.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {
+    println!("INFO : Kernel Start at : 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
+    println!("INFO : Kernel End at : 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
+
     // Vérification du format du pointeur multiboot.
     if !multiboot_info_ptr.is_multiple_of(8) {
         println!("WARNING: Unaligned multiboot pointer.");

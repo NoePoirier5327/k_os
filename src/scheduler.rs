@@ -2,6 +2,8 @@
 
 pub mod thread;
 
+use core::mem::swap;
+
 use thread::{Thread, ThreadId, ThreadState, swap_context};
 use alloc::collections::VecDeque;
 use spin::Mutex;
@@ -57,15 +59,15 @@ impl Scheduler {
         self.threads.front_mut()
     }
 
-    /// Méthode d'ordonnancement des processus contenu dans l'ordonnanceur courant.
-    pub fn schedule(&mut self) {
+    /// Méthode d'acquisition des adresses de changement de contexte processeur.
+    pub fn get_context(&mut self) -> Option<(*mut u64, u64)> {
         // On libert l'ancien thread mort.
         self.garbage = None;
 
         // S'il n'y a qu'un seul processus ou moins dans l'ordonnanceur,
         // aucun besoin de la méthode.
         if self.threads.len() <= 1 {
-            return;
+            return None;
         }
 
         let is_dead = self.threads.front().unwrap().get_state() == ThreadState::Dead;
@@ -79,12 +81,9 @@ impl Scheduler {
             next_thread.busy();
             let next_rsp = next_thread.get_stack_pointer();
 
-            // On l'échange avec un pointeur de pile ne correspondant à rien d'important
-            // pour ne pas corompre le CPU avec des données morte.
+            // On renvoie le nouveau contexte
             let mut temp_rsp = 0u64;
-            unsafe {
-                swap_context(&mut temp_rsp as *mut u64, next_rsp);
-            }
+            Some((&mut temp_rsp as *mut u64, next_rsp))
         } else {
             self.threads.front_mut().unwrap().ready();
             self.threads.rotate_left(1);
@@ -94,10 +93,25 @@ impl Scheduler {
             let new_rsp = self.threads.front().unwrap().get_stack_pointer();
             let old_rsp = self.threads.back_mut().unwrap().get_stack_pointer_mut() as *mut u64;
 
-            // On échange les contextes.
-            unsafe {
-                swap_context(old_rsp, new_rsp);
-            }
+            // On renvoie le nouveau contexte
+            Some((old_rsp, new_rsp))
+        }
+    }
+}
+
+/// Fonction de changement de contexte de l'ordonnanceur mémoire.
+pub fn schedule() {
+    let context_to_swap : Option<(*mut u64, u64)>;
+
+    {
+        let mut scheduler = SCHEDULER.lock();
+        context_to_swap = scheduler.get_context();
+    } // Le mutex est libéré ici
+
+    // On effectue le changement de contexte ici
+    if let Some((old_rsp, new_rsp)) = context_to_swap {
+        unsafe {
+            swap_context(old_rsp, new_rsp);
         }
     }
 }
