@@ -40,7 +40,7 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
 
     // On référence la fonction de gestion de double_fault et sa fonction de swap de pile.
     unsafe {
-        idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(crate::kernel::gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
     }
 
     // On référence la fonction de gestion du timer.
