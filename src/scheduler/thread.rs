@@ -64,7 +64,7 @@ impl Thread {
 
             // On simule le stockage de registre processeur dans la pile
             // privée du tas.
-            let num_registers = 8; 
+            let num_registers = 15; 
             stack_ptr = stack_ptr.offset(-num_registers);
             rsp = stack_ptr as u64;
         }
@@ -181,8 +181,15 @@ pub unsafe extern "C" fn swap_context(old_thread : *mut u64, new_thread : u64) {
 
     naked_asm!(
         // On pousse les registres d'executions du thread sortant dans sa pile.
-        "push rbp",
+        "push rax",
         "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rbp",
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
         "push r12",
         "push r13",
         "push r14",
@@ -209,8 +216,15 @@ pub unsafe extern "C" fn swap_context(old_thread : *mut u64, new_thread : u64) {
         "pop r14",
         "pop r13",
         "pop r12",
-        "pop rbx",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
         "pop rbp",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
 
         "ret"
     )
