@@ -2,11 +2,16 @@
 //! code majoritairement tiré du tutoriel de Philipp Opermann.
 
 use x86_64::structures::paging::page_table::FrameError;
-use x86_64::structures::paging::PageTable;
-use x86_64::structures::paging::PhysFrame;
-use x86_64::structures::paging::Size4KiB;
-use x86_64::structures::paging::FrameAllocator;
-use x86_64::structures::paging::OffsetPageTable;
+use x86_64::structures::paging::{
+    Page,
+    Size4KiB,
+    Mapper,
+    FrameAllocator,
+    PageTableFlags,
+    PageTable,
+    OffsetPageTable,
+    PhysFrame
+};
 use x86_64::registers::control::Cr3;
 use x86_64::VirtAddr;
 use x86_64::PhysAddr;
@@ -93,6 +98,38 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
         let level_4_table = active_level_4_table(physical_memory_offset);
         OffsetPageTable::new(level_4_table, physical_memory_offset)
     }
+}
+
+/// Syscall d'allocation de memoire avec le privilège utilisateur.
+///
+/// # Arguments
+/// * `page` : page à allouer à l'utilisateur.
+/// * `mapper` : interface de cartographie de la mémoire.
+/// * `frame_allocator` : allocateur de frame physique en mémoire.
+///
+/// # Safety
+/// L'appelant y accède uniquement par un syscall
+pub unsafe fn allocate_user_page(
+    page: Page<Size4KiB>, 
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>
+) -> Result<(), &'static str> {
+    
+    // On demande une frame brute à l'allocateur.
+    let frame = frame_allocator.allocate_frame()
+        .ok_or("ERROR : No more physical memory left.")?;
+
+    // Flags de sécuritée pour le mappage
+    let flags = PageTableFlags::PRESENT 
+              | PageTableFlags::WRITABLE 
+              | PageTableFlags::USER_ACCESSIBLE;
+
+    // On map la page souhaitée avec les flags spécifiés.
+    unsafe {
+        let _ = mapper.map_to(page, frame, flags, frame_allocator);
+    }
+
+    Ok(())
 }
 
 /// Fonction renvoyant un accès mutable sur la table mémoire active de niveau 4.
