@@ -74,6 +74,8 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
     println!("Welcome to k_os.");
 
+    user::user_mode::enter_user_space();
+
     hlt();
 }
 

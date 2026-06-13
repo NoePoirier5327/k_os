@@ -37,13 +37,42 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
 
 /// Type gérant les segments mémoire pour le déplacement de pile.
 #[derive(Debug, Clone, Copy)]
-struct Selectors {
+pub struct Selectors {
     kernel_code_selector: SegmentSelector,
     kernel_data_selector: SegmentSelector,
     user_code_selector: SegmentSelector,
     user_data_selector: SegmentSelector,
     tss_selector: SegmentSelector
 }
+
+impl Selectors {
+    pub fn get_kernel_code_selector(&self) -> SegmentSelector {
+        self.kernel_code_selector
+    }
+
+    pub fn get_kernel_data_selector(&self) -> SegmentSelector {
+        self.kernel_data_selector
+    }
+
+    pub fn get_user_code_selector(&self) -> SegmentSelector {
+        self.user_code_selector
+    }
+
+    pub fn get_user_data_selector(&self) -> SegmentSelector {
+        self.user_data_selector
+    }
+
+    pub fn get_tss_selector(&self) -> SegmentSelector {
+        self.tss_selector
+    }
+}
+
+
+/// Accesseur des selecteurs de la gdt courante.
+pub fn get_selectors() -> Selectors {
+    GDT.1
+}
+
 
 /// S'occupe de déplacer le pointeur de pile lors de double fault.
 static GDT: Lazy<(GlobalDescriptorTable, Selectors)> = Lazy::new(|| {
