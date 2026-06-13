@@ -9,14 +9,13 @@
 
 extern crate alloc;
 
+mod user;
+pub mod kernel;
 pub mod vga_buffer;
 pub mod interrupts;
-pub mod gdt;
 pub mod memory;
 pub mod allocator;
-pub mod scheduler;
 
-use scheduler::SCHEDULER;
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
@@ -93,7 +92,7 @@ fn hlt() -> ! {
 
 /// Fonction d'initialisation des composantes du noyau comme la table d'interrutions et les ports x86_64
 fn init() {
-    gdt::init();
+    kernel::gdt::init();
 
     print!("IDT initialization ");
     interrupts::init_idt();
