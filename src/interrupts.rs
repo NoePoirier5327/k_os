@@ -119,10 +119,10 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     // On cadence le yield de l'ordonnanceur sur le timer processeur.
     x86_64::instructions::interrupts::disable();
     crate::scheduler::schedule();
-    x86_64::instructions::interrupts::enable();
 
     unsafe {
-      PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
+        PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
+        // les interruptions sont réactivés par le retour d'interruption
     }
 }
 

@@ -61,48 +61,18 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
         &*(tag as *const multiboot2::MemoryMapTag)
     };
 
-    let offset = VirtAddr::new(physical_memory_offset);
+    let vritual_memory_offset = VirtAddr::new(physical_memory_offset);
 
     // Création des alloueurs mémoire.
     println!("Frame allocator initialization.");
     let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
-    let mut mapper = unsafe { memory::init(offset) };
+    let mut mapper = unsafe { memory::init(vritual_memory_offset) };
 
     // Allocation de la zone du tas.
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("ERROR : Heap initialization failed.");
 
     println!("Welcome to k_os.");
-
-    // Test du swap de threads
-    fn test1() {
-        for _ in 0..500 {
-            println!("Kijetesantakalu");
-        }
-    }
-
-    fn test2() {
-        for _ in 0..500 {
-            println!("li");
-        }
-    }
-
-    fn test3() {
-        for _ in 0..500 {
-            println!("tawa");
-        }
-    }
-    
-    fn test4() {
-        for _ in 0..500 {
-            println!("sike.");
-        }
-    }
-
-    SCHEDULER.lock().spawn(test1);
-    SCHEDULER.lock().spawn(test2);
-    SCHEDULER.lock().spawn(test3);
-    SCHEDULER.lock().spawn(test4);
 
     hlt();
 }
