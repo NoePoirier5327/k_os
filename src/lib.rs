@@ -52,7 +52,7 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     println!("INFO: Physical memory offset = {}", physical_memory_offset);
 
     // On initialise les composantes du kernel
-    init();
+    kernel::init();
 
     // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
     let boot_info = unsafe { BootInformation::load(multiboot_info_ptr as *const BootInformationHeader).unwrap() };
@@ -74,6 +74,7 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
     println!("Welcome to k_os.");
 
+    // On passe en ring 3
     user::enter_user_space();
 
     hlt();
@@ -91,21 +92,4 @@ fn hlt() -> ! {
     loop {
         x86_64::instructions::hlt();
     }
-}
-
-/// Fonction d'initialisation des composantes du noyau comme la table d'interrutions et les ports x86_64
-fn init() {
-    gdt::init();
-
-    print!("IDT initialization ");
-    interrupts::init_idt();
-    print!("(OK)\n");
-
-    print!("PICS initialization ");
-    unsafe { interrupts::PICS.lock().initialize() };
-    print!("(OK)\n");
-
-    print!("Enabling CPU interruption ");
-    x86_64::instructions::interrupts::enable();
-    print!("(OK)\n");
 }
