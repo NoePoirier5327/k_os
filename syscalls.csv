@@ -1,6 +1,8 @@
 Name;Arguments;Description
-malloc;;Alloue une page de 4ko accessible à l’utilisateur.
+palloc;;Alloue une page de 4ko accessible à l’utilisateur.
 disp;1. msg;Affiche le message en paramètre à l’écran.
 exit;1. exit_code;Signal à l’utilisateur une fin de processus utilisateur.
 own;1. owner / 2. file_path;Change le propriétaire du fichier en paramètre.
 exec;1. file;Exécute un processus utilisateur.
+kill;1. process_id / 2. kill_code;Arrête un processus de gré ou de force.
+shutdown;;Eteint le kernel ainsi que la machine.
