@@ -78,7 +78,7 @@ impl<A> Locked<A> {
     }
 
     /// Méthode de bloquage du verrou mémoire sur la donnée de l'interface.
-    pub fn lock(&self) -> spin::MutexGuard<A> {
+    pub fn lock(&self) -> spin::MutexGuard<'_, A> {
         self.inner.lock()
     }
 }
