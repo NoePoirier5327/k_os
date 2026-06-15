@@ -149,6 +149,15 @@ impl Writer {
 
         }
     }
+
+    /// Mutateur de la couleur du writer courant.
+    ///
+    /// # Arguments
+    /// * `ft_color` : nouvelle couleur du texte.
+    /// * `bg_color` : nouvelle couleur de fonf du texte.
+    pub fn set_color(&mut self, ft_color : Color, bg_color : Color) {
+        self.color_code = ColorCode::new(ft_color, bg_color);
+    }
 }
 
 /// Ajout du support des macros write! et writeln! pour qu'elles fonctionnent
@@ -163,7 +172,7 @@ impl fmt::Write for Writer {
 /// Interface d'ecriture globale dans le buffer vga. <br>
 /// Elle est chargée en tant que static à partir du moment où le processeur l'appelle
 /// et elle utilise une sémaphore pour bloquer son accès à chaques utilisations.
-pub static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
+static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
     Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::LightGray, Color::Black),
@@ -197,5 +206,17 @@ pub fn _print(args: fmt::Arguments) {
 
     interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
+    });
+}
+
+/// Mutateur de la couleur du writer vga courant.
+///
+/// # Arguments
+/// * `ft_color` : nouvelle couleur du texte.
+/// * `bg_color` : nouvelle couleur du fond du texte.
+pub fn set_writer_color(ft_color : Color, bg_color : Color) {
+    use x86_64::instructions::interrupts;
+    interrupts::without_interrupts(|| {
+        WRITER.lock().set_color(ft_color, bg_color);
     });
 }
