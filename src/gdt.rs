@@ -6,7 +6,7 @@ use x86_64::VirtAddr;
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor, SegmentSelector};
 use spin::Lazy;
-use crate::print;
+
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
