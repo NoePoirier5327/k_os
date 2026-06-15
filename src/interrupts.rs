@@ -96,7 +96,7 @@ unsafe fn configure_pit() {
 /// # Argument
 /// * `stack_frame` : message d'erreur à afficher.
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
-    println!("EXCEPTION: breakpoint\n{:#?}", stack_frame);
+    crate::disp_exception!("breakpoint\n{:#?}", stack_frame);
 }
 
 /// Fonction gérant les interruptions de séquences avec code d'erreur.<br>
@@ -106,7 +106,8 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
 /// * `stack_frame` : message d'erreur à envoyer à la panic.
 /// * `_error_code` : code d'erreur correspondant à l'erreur en paramètre.
 extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame, _error_code: u64) -> ! {
-    panic!("EXCEPTION: double fault\nError code : {:#?}\n{:#?}", _error_code, stack_frame);
+    crate::disp_exception!("double fault.");
+    panic!("Error code : {:#?}\n{:#?}", _error_code, stack_frame);
 }
 
 /// Fonction de gestion du timer.
@@ -169,7 +170,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
     use x86_64::registers::control::Cr2;
 
-    println!("EXCEPTION: page fault");
+    crate::disp_exception!("page fault.");
     println!("Accessed Address: {:?}", Cr2::read());
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
