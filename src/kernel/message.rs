@@ -42,3 +42,17 @@ macro_rules! disp_error {
         crate::println!($($args)*);
     }
 }
+
+/// Afficheur de message d'exception vers l'utilisateur.
+#[macro_export]
+macro_rules! disp_exception {
+    ($($args:tt)*) => {
+        crate::vga_buffer::set_default_writer_color();
+        crate::print!("[");
+        crate::vga_buffer::set_writer_color(crate::vga_buffer::Color::Blue, crate::vga_buffer::Color::LightGray);
+        crate::print!("EXCEPTION");
+        crate::vga_buffer::set_default_writer_color();
+        crate::print!("] : ");
+        crate::println!($($args)*);
+    }
+}
