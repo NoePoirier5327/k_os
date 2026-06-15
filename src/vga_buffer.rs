@@ -204,6 +204,8 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
+    // On interrompt les interruptions pour éviter de corrompre la pile du thread courant et faire
+    // en sorte que le verrou sur le writer soit libéré avant de passer à la suite.
     interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
     });
@@ -216,6 +218,7 @@ pub fn _print(args: fmt::Arguments) {
 /// * `bg_color` : nouvelle couleur du fond du texte.
 pub fn set_writer_color(ft_color : Color, bg_color : Color) {
     use x86_64::instructions::interrupts;
+
     interrupts::without_interrupts(|| {
         WRITER.lock().set_color(ft_color, bg_color);
     });
