@@ -35,21 +35,21 @@ extern "C" {
 /// * `multiboot_info_ptr` : pointeur multiboot2 permettant la cartographie de la mémoire pour être utilisé par le noyau ensuite.
 /// * `physical_memory_offset` : indice de décalage de pagination mémoire, envoyé depuis l'assembleur.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {
-    println!("INFO : Kernel Start at : 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
-    println!("INFO : Kernel End at : 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
+pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {   
+    crate::disp_info!("Kernel starts at 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
+    crate::disp_info!("Kernel ends at 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
 
     // Vérification du format du pointeur multiboot.
     if !multiboot_info_ptr.is_multiple_of(8) {
-        println!("WARNING: Unaligned multiboot pointer.");
+        crate::disp_warning!("Unaligned multiboot2 pointer.");
     }
 
     if multiboot_info_ptr == 0 {
-        println!("ERROR: The multiboot2 info pointer is NULL.");
+        panic!("The multiboot2 info pointer is NULL.");
     }
 
-    println!("INFO: Multiboot2 info pointer = {}", multiboot_info_ptr);
-    println!("INFO: Physical memory offset = {}", physical_memory_offset);
+    crate::disp_info!("Multiboot2 info pointer = 0x{}", multiboot_info_ptr);
+    crate::disp_info!("Physical memory offset = 0x{}", physical_memory_offset);
 
     // On initialise les composantes du kernel
     kernel::init();
@@ -57,22 +57,20 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
     let boot_info = unsafe { BootInformation::load(multiboot_info_ptr as *const BootInformationHeader).unwrap() };
     let memory_map_tag = unsafe {
-        let tag = boot_info.memory_map_tag().expect("ERROR : Memory map tag required");
+        let tag = boot_info.memory_map_tag().expect("Memory map tag required.");
         &*(tag as *const multiboot2::MemoryMapTag)
     };
 
     let vritual_memory_offset = VirtAddr::new(physical_memory_offset);
 
     // Création des alloueurs mémoire.
-    println!("Frame allocator initialization.");
+    crate::disp_info!("Frame allocator initialization.");
     let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
     let mut mapper = unsafe { memory::init(vritual_memory_offset) };
 
     // Allocation de la zone du tas.
     allocator::init_heap(&mut mapper, &mut frame_allocator)
-        .expect("ERROR : Heap initialization failed.");
-
-    println!("Welcome to k_os.");
+        .expect("Heap initialization failed.");
 
     // On passe en ring 3
     user::enter_user_space();
@@ -82,7 +80,15 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("\n{}", info);
+    use vga_buffer::{set_writer_color, set_default_writer_color, Color};
+
+    set_default_writer_color();
+    print!("[");
+    set_writer_color(Color::Red, Color::Black);
+    print!("PANIC!");
+    set_default_writer_color();
+    println!("]\n{}", info);
+
     hlt();
 }
 

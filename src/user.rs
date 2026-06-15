@@ -13,7 +13,7 @@ pub fn enter_user_space() {
     
     let entry_point = VirtAddr::from_ptr(test_user_function as *const ());
 
-    crate::println!("INFO : Swapping to ring 3.");
+    crate::disp_info!("Swapping to ring 3.");
     
     unsafe {
         user_mode::enter_user_mode(selectors, entry_point, stack_top);

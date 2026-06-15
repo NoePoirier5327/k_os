@@ -220,3 +220,12 @@ pub fn set_writer_color(ft_color : Color, bg_color : Color) {
         WRITER.lock().set_color(ft_color, bg_color);
     });
 }
+
+/// Rétabli la couleur par défaut du writer courant.
+pub fn set_default_writer_color() {
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| {
+        WRITER.lock().set_color(Color::LightGray, Color::Black);
+    })
+}

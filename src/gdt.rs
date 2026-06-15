@@ -99,16 +99,15 @@ pub fn init() {
     use x86_64::instructions::tables::load_tss;
     use x86_64::instructions::segmentation::{CS, SS, Segment};
    
-    print!("Load gdt sector 0 ");
+    crate::disp_info!("Load gdt sector 0.");
     GDT.0.load();
-    print!("(OK)\n");
+
     unsafe {
-        print!("Set kernel code and data segments ");
+        crate::disp_info!("Set kernel code and data segments.");
         CS::set_reg(GDT.1.kernel_code_selector);
         SS::set_reg(GDT.1.kernel_data_selector);
-        print!("(OK)\n");
-        print!("Load new tss ");
+
+        crate::disp_info!("Load new tss.");
         load_tss(GDT.1.tss_selector);
-        print!("(OK)\n");
     }
 }
