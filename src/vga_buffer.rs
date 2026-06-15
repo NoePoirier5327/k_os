@@ -158,6 +158,14 @@ impl Writer {
     pub fn set_color(&mut self, ft_color : Color, bg_color : Color) {
         self.color_code = ColorCode::new(ft_color, bg_color);
     }
+
+    /// Néttoie l'entieretée du buffer vga.
+    // TODO Optimiser la méthode.
+    pub fn clear_screen(&mut self) {
+        for _line in 0..BUFFER_HEIGHT {
+            self.new_line();
+        }
+    }
 }
 
 /// Ajout du support des macros write! et writeln! pour qu'elles fonctionnent
@@ -231,4 +239,13 @@ pub fn set_default_writer_color() {
     interrupts::without_interrupts(|| {
         WRITER.lock().set_color(Color::LightGray, Color::Black);
     })
+}
+
+/// Néttoie le buffer vga du writer courant.
+pub fn clear_writer_screen() {
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| {
+        WRITER.lock().clear_screen();
+    });
 }
