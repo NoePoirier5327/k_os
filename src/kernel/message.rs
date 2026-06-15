@@ -28,3 +28,17 @@ macro_rules! disp_warning {
         crate::println!($($args)*);
     }
 }
+
+/// Afficheur de message d'erreur vers l'utilisateur.
+#[macro_export]
+macro_rules! disp_error {
+    ($($args:tt)*) => {
+        crate::vga_buffer::set_default_writer_color();
+        crate::print!("[");
+        crate::vga_buffer::set_writer_color(crate::vga_buffer::Color::Yellow, crate::vga_buffer::Color::Black);
+        crate::print!("ERROR");
+        crate::vga_buffer::set_default_writer_color();
+        crate::print!("] : ");
+        crate::println!($($args)*);
+    }
+}
