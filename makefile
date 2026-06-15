@@ -11,6 +11,7 @@ kernel:
 	cargo build --target x86_64-unknown-none --release
 
 linkage:
+	mkdir -p bin
 	# Linkage du bootloader et du kernel.
 	ld -n -T linker.ld -Map bin/kernel.map -o bin/kernel.bin\
 		bin/multiboot_header.o\
