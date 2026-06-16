@@ -1,4 +1,7 @@
 use core::arch::naked_asm;
+use x86_64::registers::model_specific::{Star, LStar, SFMask};
+use x86_64::structures::gdt::SegmentSelector;
+use x86_64::VirtAddr;
 
 
 // Codes de gestion des syscalls.
@@ -13,6 +16,37 @@ const ENOSYS : u64 = 38;
 const ESUCCESS : u64 = 0;
 
 
+/// Initialise les appelles systèmes au niveau de l'assembleur.
+///
+/// # Arguments
+/// * `kernel_code_selector` : point d'entrée, sur la gdt, du segment de code sur lequel est les syscalls.
+/// * `kernel_data_selector` : point d'entrée, sur la gdt, du segment de donnée sur lequel est les syscalls.
+/// * `user_code_selector` : segment de code, sur la gdt, sur lequel revenir après un syscall.
+/// * `user_data_selector` : segment de donnée, sur la gdt, sur lequel revenir après un syscall. 
+///
+/// # Safety
+pub unsafe fn init_syscalls(
+    kernel_code_selector : SegmentSelector,
+    kernel_data_selector : SegmentSelector,
+    user_code_selector : SegmentSelector,
+    user_data_selector : SegmentSelector
+) {
+    // STAR indique au CPU quels segments charger lors du syscall/sysret
+    Star::write(
+        user_code_selector,
+        user_data_selector,
+        kernel_code_selector,
+        kernel_data_selector
+    ).unwrap();
+
+    // LSTAR donne l'adresse du point d'entrée assembleur au CPU
+    LStar::write(VirtAddr::new(syscall_entry as *const () as u64));
+
+    // SFMASK masque le drapeau d'interruption pour désactiver les interruptions 
+    // le temps qu'on bascule sur la pile du noyau (évite les conditions de concurrence).
+    SFMask::write(x86_64::registers::rflags::RFlags::INTERRUPT_FLAG);
+}
+
 /// Dispatcher d'appels système, appel les fonctions kernels correspondantes au syscall courant.
 ///
 /// # Arguments
@@ -26,7 +60,7 @@ const ESUCCESS : u64 = 0;
 ///
 /// # Safety
 #[no_mangle]
-pub unsafe extern "sysv64" fn syscall_dispatcher(
+unsafe extern "sysv64" fn syscall_dispatcher(
     id : u64,
     arg1 : u64,
     arg2 : u64,
@@ -54,7 +88,7 @@ pub unsafe extern "sysv64" fn syscall_dispatcher(
 ///
 /// # Safety
 #[unsafe(naked)]
-pub unsafe extern "sysv64" fn syscall_entry() {
+unsafe extern "sysv64" fn syscall_entry() {
     naked_asm!(
         // swapgs échange le registre GS de l'utilisateur avec le GS du noyau.
         "swapgs",
