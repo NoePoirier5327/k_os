@@ -26,6 +26,7 @@ extern "C" {
 /// Adresse de début des pages utilisateur.<br>
 /// Elles vont de USER_STACK_START + USER_STACK_SIZE à 0x8000_0000 -1.
 pub static USER_PAGES_START : u64 = USER_STACK_START + USER_STACK_SIZE as u64;
+pub static USER_PAGES_END : u64 = KERNEL_PAGES_START - 1;
 pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
 
 /// Structure d'un alloueur mémoire simple.
@@ -197,6 +198,23 @@ pub unsafe fn allocate_user_region(
     }
 
     Ok(())
+}
+
+/// Vérifie si une portion mémoire est dans la zone utilisateur ou non.
+///
+/// # Arguments
+/// * `ptr` : pointeur sur le début de la zone.
+/// * `len` : taille de la zone.
+pub fn is_user_address_range(ptr: *const u8, len: usize) -> bool {
+    let start = ptr as u64;
+
+    // On calcule la fin du buffer en gérant les dépassements d'entiers (overflows)
+    let end = match start.checked_add(len as u64) {
+        Some(val) => val,
+        None => return false, // L'utilisateur tente un overflow
+    };
+
+    end <= USER_PAGES_END
 }
 
 /// Fonction renvoyant un accès mutable sur la table mémoire active de niveau 4.

@@ -265,12 +265,14 @@ pub unsafe fn extract_str_from_adr(first_car_adr : u64, str_len : u64) -> Result
     let ptr = first_car_adr as *const u8;
     let len = str_len as usize;
 
-    // TODO Vérifier que l'adresse est dans la portion de la ram dédiée à l'utilisateur.
+    if !crate::memory::is_user_address_range(ptr, len) {
+        return Err("Someone tries to access non user memory.");
+    }
 
     let byte_slice = slice::from_raw_parts(ptr, len);
 
     match str::from_utf8(byte_slice) {
         Ok(valid_str) => Ok(valid_str),
-        Err(_) => Err("Chaîne UTF-8 invalide.")
+        Err(_) => Err("Invalid UTF-8 sring.")
     }
 }
