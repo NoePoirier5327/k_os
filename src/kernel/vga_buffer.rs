@@ -191,7 +191,7 @@ static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
 /// Support de la macro print! de la librairie standard de rust.
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::kernel::vga_buffer::_print(format_args!($($arg)*)));
 }
 
 /// Support de la macro println! de la librairie standard de rust.
@@ -208,7 +208,7 @@ macro_rules! println {
 /// # Argument
 /// * `args` : arguments pour l'affichage dans le writer.
 #[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
+pub fn _print(args: fmt::Arguments) -> u64 {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
@@ -217,6 +217,8 @@ pub fn _print(args: fmt::Arguments) {
     interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
     });
+
+    0 // Résultat de l'appel pour les syscalls.
 }
 
 /// Mutateur de la couleur du writer vga courant.

@@ -11,7 +11,6 @@ extern crate alloc;
 
 pub mod user;
 pub mod kernel;
-pub mod vga_buffer;
 pub mod interrupts;
 pub mod gdt;
 pub mod memory;
@@ -90,7 +89,7 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    use vga_buffer::{set_writer_color, set_default_writer_color, Color};
+    use kernel::vga_buffer::{set_writer_color, set_default_writer_color, Color};
 
     set_default_writer_color();
     print!("[");

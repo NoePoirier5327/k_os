@@ -1,5 +1,6 @@
 pub mod scheduler;
 pub mod message;
+pub mod vga_buffer;
 
 /// Fonction d'initialisation des composantes du noyau comme la table d'interrutions et les ports x86_64
 pub fn init() {
