@@ -1,20 +1,39 @@
 mod user_mode;
 
 use x86_64::VirtAddr;
+use x86_64::structures::paging::OffsetPageTable;
+use crate::memory::BootInfoFrameAllocator;
+
+
+/// Adresse de début de la pile utilisateur.
+pub static USER_STACK_START : u64 = 0x0040_0000;
+
+/// Taille de la pile utilisateur.
+pub static USER_STACK_SIZE : usize = 4096 * 2;
+
 
 /// Permet de démarrer le mode utilisateur dans le ring 3 du CPU.
-pub fn enter_user_space() {
+pub fn enter_user_space(
+    mapper : &mut OffsetPageTable,
+    frame_allocator : &mut BootInfoFrameAllocator
+) {
     // On crée une pile propre pour le mode utilisateur
-    const USER_STACK_SIZE: usize = 4096 * 2;
     static mut USER_STACK: [u8; USER_STACK_SIZE] = [0; USER_STACK_SIZE];
-    
+
+    // On place le point d'entrée de l'espace utilisateur dans une page utilisateur dédiée.
+    let fn_adr = test_user_function as *const u8;
+
+    unsafe {
+        crate::memory::place_in_user_pages(mapper, frame_allocator, fn_adr, 128)
+            .expect("Failed to map user pages");
+    }
+   
+    // On prépare les arguments d'entrées en ring 3
     let stack_top = VirtAddr::from_ptr(&raw const USER_STACK) + USER_STACK_SIZE as u64;
-    let selectors = crate::gdt::get_selectors();
-    
-    let entry_point = VirtAddr::from_ptr(test_user_function as *const ());
+    let selectors = crate::gdt::get_selectors(); 
+    let entry_point = VirtAddr::from_ptr(crate::memory::USER_PAGES_START as *const ());
 
     crate::disp_info!("Swapping to ring 3.");
-    
     unsafe {
         user_mode::enter_user_mode(selectors, entry_point, stack_top);
     }

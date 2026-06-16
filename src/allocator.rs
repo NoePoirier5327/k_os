@@ -55,9 +55,6 @@ pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>, frame_allocator: &mut impl 
         ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
 
-    crate::disp_info!("Heap starts at 0x{:x}", HEAP_START);
-    crate::disp_info!("Heap ends at 0x{:x}", HEAP_START+HEAP_SIZE-1);
-
     Ok(())
 }
 

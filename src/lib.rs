@@ -72,8 +72,18 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("Heap initialization failed.");
 
+    // On affiche les informations d'aligement de la mémoire.
+    crate::disp_info!("User stack will start at 0x{:x}.", user::USER_STACK_START);
+    crate::disp_info!("User stack will end at 0x{:x}.", user::USER_STACK_START+user::USER_STACK_SIZE as u64-1);
+    crate::disp_info!("User pages starts at 0x{:x}.", memory::USER_PAGES_START);
+    crate::disp_info!("User pages ends at 0x{:x}.", memory::KERNEL_PAGES_START-1);
+    crate::disp_info!("Kernel pages starts at 0x{:x}.", memory::KERNEL_PAGES_START);
+    crate::disp_info!("Kernel pages ends at 0x{:x}.", allocator::HEAP_START-1);
+    crate::disp_info!("Heap starts at 0x{:x}.", allocator::HEAP_START);
+    crate::disp_info!("Head ends at 0x{:x}.", allocator::HEAP_START+allocator::HEAP_SIZE-1);
+
     // On passe en ring 3
-    user::enter_user_space();
+    user::enter_user_space(&mut mapper, &mut frame_allocator);
 
     hlt();
 }

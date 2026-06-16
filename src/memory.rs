@@ -13,16 +13,20 @@ use x86_64::structures::paging::{
     PhysFrame
 };
 use x86_64::registers::control::Cr3;
-use x86_64::VirtAddr;
-use x86_64::PhysAddr;
-
+use x86_64::{VirtAddr, PhysAddr};
 use multiboot2::MemoryMapTag;
+use crate::user::{USER_STACK_START, USER_STACK_SIZE};
 
 // Adresses de début et fin du kernel.
 extern "C" {
     static __kernel_start: u8;
     static __kernel_end: u8;
 }
+
+/// Adresse de début des pages utilisateur.<br>
+/// Elles vont de USER_STACK_START + USER_STACK_SIZE à 0x8000_0000 -1.
+pub static USER_PAGES_START : u64 = USER_STACK_START + USER_STACK_SIZE as u64;
+pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
 
 /// Structure d'un alloueur mémoire simple.
 pub struct BootInfoFrameAllocator {
@@ -109,6 +113,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
 ///
 /// # Safety
 /// L'appelant y accède uniquement par un syscall
+// TODO trouver un emplacement plus adapté à cette fonction dans l'architecture.
 pub unsafe fn allocate_user_page(
     page: Page<Size4KiB>, 
     mapper: &mut impl Mapper<Size4KiB>,
@@ -128,6 +133,35 @@ pub unsafe fn allocate_user_page(
     unsafe {
         let _ = mapper.map_to(page, frame, flags, frame_allocator);
     }
+
+    Ok(())
+}
+
+/// Place l'adresse de la fonction en paramètre dans une zone accessible à l'utilisateur.
+///
+/// # Arguments
+/// * `mapper` : instance du mapper de page.
+/// * `frame_allocator` : instance de l'allocateur d'emplacement.
+/// * `fn_adr` : adresse à placer dans une page accessible à l'utilisateur.
+/// * `fn_size` : taille de la fonction à copier.
+///
+/// # Safety
+/// L'appelant doit s'assurer que la zone à laquelle il accède est bien défini en mémoire.
+// TODO trouver un emplacement plus adapté dans l'architecture à cette fonction.
+pub unsafe fn place_in_user_pages(
+    mapper : &mut OffsetPageTable,
+    frame_allocator : &mut BootInfoFrameAllocator,
+    fn_adr : *const u8,
+    fn_size : usize
+) -> Result<(), &'static str> {
+    // On créer une page utilisateur dans la zone dédiée
+    let user_page : Page<Size4KiB> = Page::containing_address(VirtAddr::new(USER_PAGES_START));
+    allocate_user_page(user_page, mapper, frame_allocator)?;
+
+    // On copie l'adresse de la fonction dans cette nouvelle page.
+    let src = fn_adr;
+    let dest = USER_PAGES_START as *mut u8;
+    core::ptr::copy_nonoverlapping(src, dest, fn_size);
 
     Ok(())
 }
