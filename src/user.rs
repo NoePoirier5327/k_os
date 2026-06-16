@@ -13,16 +13,19 @@ pub static USER_STACK_SIZE : usize = 4096 * 2;
 
 
 /// Permet de démarrer le mode utilisateur dans le ring 3 du CPU.
+///
+/// # Arguments
+/// * `mapper` : mapper de pages mémoire.
+/// * `frame_allocator` : allocateur de pages mémoire.
 pub fn enter_user_space(
     mapper : &mut OffsetPageTable,
     frame_allocator : &mut BootInfoFrameAllocator
 ) {
-    // On crée une pile propre pour le mode utilisateur
+    // On créer une pile propre pour le mode utilisateur
     static mut USER_STACK: [u8; USER_STACK_SIZE] = [0; USER_STACK_SIZE];
 
     // On place le point d'entrée de l'espace utilisateur dans une page utilisateur dédiée.
     let fn_adr = test_user_function as *const u8;
-
     unsafe {
         crate::memory::place_in_user_pages(mapper, frame_allocator, fn_adr, 128)
             .expect("Failed to map user pages");
