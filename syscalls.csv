@@ -1,10 +1,10 @@
-Name,Arguments,Description
-sys_palloc,,Alloue une page de 4ko accessible à l’utilisateur.
-sys_disp,1. msg / 2. msg_size,Affiche le message en paramètre à l’écran.
-sys_dispcolor,1. ft_color / 2. bg_color,Change la couleur d’affichage dans le buffer vga.
-sys_newthread,1. proc_adr,Créer un nouveau thread dans l’ordonnanceur.
-sys_fown,1. owner / 2. file_path,Change le propriétaire du fichier en paramètre.
-sys_exec,1. file,Exécute un processus utilisateur.
-sys_shutdown,,Eteint le kernel ainsi que la machine.
-sys_kill,1. process_id / 2. kill_code,Arrête un processus de gré ou de force.
-sys_exit,1. exit_code,Signal à l’utilisateur une fin de processus utilisateur.
+rax,Name,rbx,rcx,rdx,Description
+0x00,sys_disp,msg : char *,msg_size : size_t,,Affiche le message en paramètre à l’écran.
+0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,Change la couleur d’affichage dans le buffer vga.
+0x02,sys_palloc,,,,Alloue une page de 4ko accessible à l’utilisateur.
+0x03,sys_newthread,proc_adr : uint,,,Créer un nouveau thread dans l’ordonnanceur.
+0x04,sys_fown,owner (?),file_path : char *,file_path_size : size_t,Change le propriétaire du fichier en paramètre.
+0x05,sys_exec,file_path : char *,file_path_size : size_t,,Exécute un processus utilisateur.
+0x06,sys_shutdown,,,,Eteint le kernel ainsi que la machine.
+0x07,sys_kill,process_id : uint,kill_code : uint,,Arrête un processus de gré ou de force.
+0x08,sys_exit,exit_code : int,,,Signal au noyau une fin de processus utilisateur.
