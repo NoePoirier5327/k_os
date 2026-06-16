@@ -24,6 +24,13 @@ pub fn enter_user_space(
     // On créer une pile propre pour le mode utilisateur
     static mut USER_STACK: [u8; USER_STACK_SIZE] = [0; USER_STACK_SIZE];
 
+    // On alloue les pages correspondantes à la pile.
+    unsafe {
+        let start_adr = VirtAddr::new(USER_STACK_START);
+        crate::memory::allocate_user_region(mapper, frame_allocator, start_adr, USER_STACK_SIZE)
+            .expect("Not enough space to allocate user stack.");
+    }
+
     // On place le point d'entrée de l'espace utilisateur dans une page utilisateur dédiée.
     let fn_adr = test_user_function as *const u8;
     unsafe {

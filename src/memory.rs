@@ -166,6 +166,39 @@ pub unsafe fn place_in_user_pages(
     Ok(())
 }
 
+/// Alloue une région de la mémoire à l'utilisateur.
+///
+/// # Arguments
+/// * `mapper` : cartographieur de pages mémoire.
+/// * `frame_allocator` : alloueur d'emplacements mémoire.
+/// * `start_adr` : adresse de début de zone à allouer.
+/// * `region_size` : taille de la région à allouer.
+///
+/// # Safety
+/// L'appelant doit s'assurer qu'il a assez de place pour allouer une région de la taille qu'il veut
+/// en paramètre.
+// TODO Trouver un emplacement plus approprié dans l'architecture du projet.
+pub unsafe fn allocate_user_region(
+    mapper : &mut impl Mapper<Size4KiB>,
+    frame_allocator : &mut impl FrameAllocator<Size4KiB>,
+    start_adr : VirtAddr,
+    region_size : usize
+) -> Result<(), &'static str> {
+    // Nombre de pages à allouer arrondie à l'excédent.
+    let nb_pages = (region_size + 4095).div_ceil(4096);
+
+    for i in 0..nb_pages {
+        // On sélectionne la page correspondante.
+        let current_adr = start_adr + (i*4096) as u64;
+        let current_page : Page<Size4KiB> = Page::containing_address(current_adr);
+
+        // On l'alloue à l'utilisateur.
+        allocate_user_page(current_page, mapper, frame_allocator)?;
+    }
+
+    Ok(())
+}
+
 /// Fonction renvoyant un accès mutable sur la table mémoire active de niveau 4.
 ///
 /// # Argument
