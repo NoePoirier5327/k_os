@@ -208,7 +208,7 @@ macro_rules! println {
 /// # Argument
 /// * `args` : arguments pour l'affichage dans le writer.
 #[doc(hidden)]
-pub fn _print(args: fmt::Arguments) -> u64 {
+pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
@@ -217,8 +217,6 @@ pub fn _print(args: fmt::Arguments) -> u64 {
     interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
     });
-
-    0 // Résultat de l'appel pour les syscalls.
 }
 
 /// Mutateur de la couleur du writer vga courant.

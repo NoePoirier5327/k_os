@@ -1,4 +1,4 @@
-use core::arch::asm;
+use core::arch::naked_asm;
 
 
 // Codes de gestion des syscalls.
@@ -23,6 +23,9 @@ const ESUCCESS : u64 = 0;
 ///
 /// # Return
 /// Renvoie un code permettant de connaître le resultat de l'appel.
+///
+/// # Safety
+#[no_mangle]
 pub unsafe extern "sysv64" fn syscall_dispatcher(
     id : u64,
     arg1 : u64,
@@ -36,7 +39,8 @@ pub unsafe extern "sysv64" fn syscall_dispatcher(
                     .expect("Failed to extract the desired string from the ram")
             };
 
-            super::vga_buffer::_print(format_args!("{}", to_disp))
+            crate::print!("{}", to_disp);
+            ESUCCESS
         }
 
         _ => {
@@ -44,4 +48,57 @@ pub unsafe extern "sysv64" fn syscall_dispatcher(
             ENOSYS
         }
     }
+}
+
+/// Echange le contexte du CPU pour executer le syscall demandé.
+///
+/// # Safety
+#[unsafe(naked)]
+pub unsafe extern "sysv64" fn syscall_entry() {
+    naked_asm!(
+        // swapgs échange le registre GS de l'utilisateur avec le GS du noyau.
+        "swapgs",
+        "mov gs:[0x10], rsp", // Sauvegarde le RSP (pile) de l'utilisateur
+        "mov rsp, gs:[0x00]", // Charge le RSP (pile) du noyau
+
+        // On sauvegarde l'état d'execution du thread dans la pile utilisateur.
+        "push rbp",
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+        "push rdi",
+        "push rsi",
+
+        // On appel le dispatcher pour lancer le syscall en paramètre.
+        "mov rdi, rax", // id
+        "mov rsi, rbx", // arg1
+        "mov rax, rdx",
+        "mov rdx, rcx", // arg2
+        "mov rcx, rax", // arg3
+        "call syscall_dispatcher",
+        // le résultat du retour du syscall est dans le registre RAX.
+
+        // On récupère l'état d'éxecution du thread utilisateur.
+        "pop rsi",
+        "pop rdi",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "pop rbp",
+
+        // Restauration de la pile utilisateur et retour
+        "mov rsp, gs:[0x10]",
+        "swapgs",
+        "sysretq",
+    );
 }
