@@ -25,6 +25,8 @@ const ESUCCESS : u64 = 0;
 /// * `user_data_selector` : segment de donnée, sur la gdt, sur lequel revenir après un syscall. 
 ///
 /// # Safety
+/// L'appelant doit d'assurer que les ségments de code auquels il accède sont bien définis dans la
+/// gdt.
 pub unsafe fn init_syscalls(
     kernel_code_selector : SegmentSelector,
     kernel_data_selector : SegmentSelector,

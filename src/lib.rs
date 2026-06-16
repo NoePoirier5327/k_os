@@ -19,6 +19,7 @@ pub mod allocator;
 use core::panic::PanicInfo;
 use multiboot2::{BootInformation, BootInformationHeader};
 use x86_64::VirtAddr;
+use gdt::get_selectors;
 
 
 extern "C" {
@@ -75,11 +76,22 @@ pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64)
     crate::disp_info!("User stack will start at 0x{:x}.", user::USER_STACK_START);
     crate::disp_info!("User stack will end at 0x{:x}.", user::USER_STACK_START+user::USER_STACK_SIZE as u64-1);
     crate::disp_info!("User pages starts at 0x{:x}.", memory::USER_PAGES_START);
-    crate::disp_info!("User pages ends at 0x{:x}.", memory::KERNEL_PAGES_START-1);
+    crate::disp_info!("User pages ends at 0x{:x}.", memory::USER_PAGES_END);
     crate::disp_info!("Kernel pages starts at 0x{:x}.", memory::KERNEL_PAGES_START);
     crate::disp_info!("Kernel pages ends at 0x{:x}.", allocator::HEAP_START-1);
     crate::disp_info!("Heap starts at 0x{:x}.", allocator::HEAP_START);
     crate::disp_info!("Head ends at 0x{:x}.", allocator::HEAP_START+allocator::HEAP_SIZE-1);
+
+    // On initialise les appels systèmes
+    crate::disp_info!("Syscalls initialization.");
+    unsafe {
+        kernel::syscalls::init_syscalls(
+            get_selectors().get_kernel_code_selector(), 
+            get_selectors().get_kernel_data_selector(),
+            get_selectors().get_user_code_selector(), 
+            get_selectors().get_user_data_selector()
+        );
+    }
 
     // On passe en ring 3
     user::enter_user_space(&mut mapper, &mut frame_allocator);
