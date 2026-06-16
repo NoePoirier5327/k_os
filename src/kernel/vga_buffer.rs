@@ -4,7 +4,7 @@
 
 // TODO Gérer l'affichage des accents de UTF-8 vers CP437
 
-use core::fmt;
+use core::{fmt, slice, str};
 use spin::{Lazy, Mutex};
 use volatile::Volatile;
 
@@ -250,4 +250,29 @@ pub fn clear_writer_screen() {
     interrupts::without_interrupts(|| {
         WRITER.lock().clear_screen();
     });
+}
+
+
+/// Reconstruit une chaîne de caractère stockée dans la ram à une adresse donnée.
+///
+/// # Arguments
+/// * `first_car_adr` : Adresse du premier caractère de la chaîne.
+/// * `str_len` : taille de la chaîne à extraire.
+///
+/// # Safety
+/// L'appelant doit être sur que l'adresse en paramètre pointe bien vers la chaîne voulue en
+/// mémoire.
+// TODO à placer dans le module de gestion des strings.
+pub unsafe fn extract_str_from_adr(first_car_adr : u64, str_len : u64) -> Result<&'static str, &'static str> {
+    let ptr = first_car_adr as *const u8;
+    let len = str_len as usize;
+
+    // TODO Vérifier que l'adresse est dans la portion de la ram dédiée à l'utilisateur.
+
+    let byte_slice = slice::from_raw_parts(ptr, len);
+
+    match str::from_utf8(byte_slice) {
+        Ok(valid_str) => Ok(valid_str),
+        Err(_) => Err("Chaîne UTF-8 invalide.")
+    }
 }
