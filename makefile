@@ -2,6 +2,7 @@ all: bootloader kernel linkage iso
 
 bootloader:
 	# Assemblage du bootloader.
+	mkdir -p bin
 	nasm -f elf64 boot/src/multiboot_header.asm -o bin/multiboot_header.o
 	nasm -f elf64 boot/src/long_mode_init.asm -o bin/long_mode_init.o
 	nasm -f elf64 boot/src/start.asm -o bin/start.o
