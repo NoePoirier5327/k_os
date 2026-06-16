@@ -80,8 +80,8 @@ static GDT: Lazy<(GlobalDescriptorTable, Selectors)> = Lazy::new(|| {
 
     let kernel_code_selector = gdt.append(Descriptor::kernel_code_segment());
     let kernel_data_selector = gdt.append(Descriptor::kernel_data_segment());
-    let user_code_selector = gdt.append(Descriptor::user_code_segment());
     let user_data_selector = gdt.append(Descriptor::user_data_segment());
+    let user_code_selector = gdt.append(Descriptor::user_code_segment());
 
     let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
 

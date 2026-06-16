@@ -34,12 +34,17 @@ pub unsafe fn init_syscalls(
     user_data_selector : SegmentSelector
 ) {
     // STAR indique au CPU quels segments charger lors du syscall/sysret
-    Star::write(
+    match Star::write(
         user_code_selector,
         user_data_selector,
         kernel_code_selector,
         kernel_data_selector
-    ).unwrap();
+    ) {
+        Ok(_) => {},
+        Err(error_msg) => {
+            panic!("Failed to load segments for syscall/sysret : {:?}", error_msg);
+        }
+    }
 
     // LSTAR donne l'adresse du point d'entrée assembleur au CPU
     LStar::write(VirtAddr::new(syscall_entry as *const () as u64));
