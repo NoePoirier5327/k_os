@@ -15,7 +15,7 @@ use x86_64::structures::paging::{
 use x86_64::registers::control::Cr3;
 use x86_64::{VirtAddr, PhysAddr};
 use multiboot2::MemoryMapTag;
-use crate::user::{USER_STACK_START, USER_STACK_SIZE};
+use crate::user_mode::{USER_STACK_START, USER_STACK_SIZE};
 
 // Adresses de début et fin du kernel.
 extern "C" {
