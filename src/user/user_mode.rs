@@ -36,10 +36,10 @@ pub unsafe fn enter_user_mode(
         "mov gs, ax",
 
         // On forge la Stack Frame requise par iretq dans l'ordre inverse du dépilage :
-        "push {ss}",        // [rsp + 32] Segment de pile utilisateur
+        "push {ss:x}",        // [rsp + 32] Segment de pile utilisateur
         "push {rsp}",       // [rsp + 24] Pointeur de pile utilisateur (RSP)
         "push {rflags}",    // [rsp + 16] Registre d'état RFLAGS
-        "push {cs}",        // [rsp + 8]  Segment de code utilisateur
+        "push {cs:x}",        // [rsp + 8]  Segment de code utilisateur
         "push {rip}",       // [rsp + 0]  Pointeur d'instruction cible (RIP)
 
         // Enfin, on saute vers le ring 3.
