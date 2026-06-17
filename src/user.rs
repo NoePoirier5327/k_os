@@ -55,6 +55,7 @@ fn test_user_function() {
     let msg = "Welcome to KOs !";
     let msg_ptr = msg.as_ptr() as u64;
     let msg_len = msg.len() as u64;
+    let mut result : u64;
 
     unsafe {
         core::arch::asm!(
@@ -62,8 +63,13 @@ fn test_user_function() {
             in("rax") 0,
             in("rsi") msg_ptr,
             in("rdx") msg_len,
+            lateout("rax") result,
             clobber_abi("sysv64"),
         );
+    }
+
+    if result != 0 {
+        panic!("Syscall error.");
     }
 
     loop {
