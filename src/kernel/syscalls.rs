@@ -8,13 +8,21 @@ use x86_64::VirtAddr;
 /// Syscall d'écriture dans la console.
 const SYS_DISP : u64 = 0;
 
+/// Syscall de changement de couleur du writer système.
+const SYS_DISPCOLOR : u64 = 1;
+
 // Codes de retour d'un syscall calqués sur les conventions linux.
 /// Syscall demandé non implémenté.
-const ENOSYS : u64 = 38;
+const ENOSYS : i64 = 38;
 
 /// Retour correct de syscall.
-const ESUCCESS : u64 = 0;
+const ESUCCESS : i64 = 0;
 
+/// Erreur d'execution
+const EFAILED : i64 = -1;
+
+/// Argument non conforme
+const ARGERROR : i64 = -2;
 
 /// Initialise les appelles systèmes au niveau de l'assembleur.
 ///
@@ -79,7 +87,7 @@ unsafe extern "sysv64" fn syscall_dispatcher(
     arg1 : u64,
     arg2 : u64,
     arg3 : u64
-) -> u64 {
+) -> i64 {
     match id {
         SYS_DISP => {
             let to_disp = unsafe {
@@ -88,6 +96,17 @@ unsafe extern "sysv64" fn syscall_dispatcher(
             };
 
             crate::print!("{}", to_disp);
+            ESUCCESS
+        }
+
+        SYS_DISPCOLOR => {
+            if arg1 > 15 || arg2 > 15 {
+                return ARGERROR;
+            }
+
+            let ft_color = super::vga_buffer::Color::from_code_to_color(arg1 as u8);
+            let bg_color = super::vga_buffer::Color::from_code_to_color(arg2 as u8);
+            super::vga_buffer::set_writer_color(ft_color, bg_color);
             ESUCCESS
         }
 

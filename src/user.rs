@@ -60,10 +60,20 @@ fn test_user_function() {
     unsafe {
         core::arch::asm!(
             "syscall",
+            in("rax") 1,
+            in("rsi") 5,
+            in("rdx") 15,
+            lateout("rax") result,
+            clobber_abi("sysv64")
+        );
+    }
+
+    unsafe {
+        core::arch::asm!(
+            "syscall",
             in("rax") 0,
             in("rsi") msg_ptr,
             in("rdx") msg_len,
-            lateout("rax") result,
             clobber_abi("sysv64"),
         );
     }
