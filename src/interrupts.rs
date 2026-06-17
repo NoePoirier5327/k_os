@@ -53,6 +53,7 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     idt[InterruptIndex::Keyboard.to_u8()].set_handler_fn(keyboard_interrupt_handler);
 
     idt.page_fault.set_handler_fn(page_fault_handler);
+    idt.invalid_opcode.set_handler_fn(invalid_iterruption_code_handler);
 
     idt
 });
@@ -175,4 +176,13 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
     hlt();
+}
+
+/// Fonction de gestion d'interruption inconnue.
+///
+/// # Arguments
+/// * `stack_frame` : portion de la mémoire dans laquelle l'erreur s'est produite
+extern "x86-interrupt" fn invalid_iterruption_code_handler(stack_frame: InterruptStackFrame) {
+    crate::disp_exception!("Invalid interruption code found.");
+    panic!("{:#?}", stack_frame);
 }
