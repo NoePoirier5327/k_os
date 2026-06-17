@@ -21,9 +21,6 @@ pub fn enter_user_space(
     mapper : &mut OffsetPageTable,
     frame_allocator : &mut BootInfoFrameAllocator
 ) {
-    // On créer une pile propre pour le mode utilisateur
-    static mut USER_STACK: [u8; USER_STACK_SIZE] = [0; USER_STACK_SIZE];
-
     // On alloue les pages correspondantes à la pile.
     unsafe {
         let start_adr = VirtAddr::new(USER_STACK_START);
@@ -35,22 +32,40 @@ pub fn enter_user_space(
     let fn_adr = test_user_function as *const u8;
     unsafe {
         crate::memory::place_in_user_pages(mapper, frame_allocator, fn_adr, 128)
-            .expect("Failed to map user pages");
+            .expect("Failed to map user space entry in user pages.");
     }
    
     // On prépare les arguments d'entrées en ring 3
-    let stack_top = VirtAddr::from_ptr(&raw const USER_STACK) + USER_STACK_SIZE as u64;
+    let stack_top = VirtAddr::new(USER_STACK_START+ USER_STACK_SIZE as u64);
     let selectors = crate::gdt::get_selectors(); 
     let entry_point = VirtAddr::from_ptr(crate::memory::USER_PAGES_START as *const ());
 
     crate::disp_info!("Swapping to ring 3.");
     unsafe {
-        user_mode::enter_user_mode(selectors, entry_point, stack_top);
+        user_mode::enter_user_mode(
+            selectors.get_user_code_selector().0,
+            selectors.get_user_data_selector().0,
+            entry_point.as_u64(), 
+            stack_top.as_u64()
+        );
     }
 }
 
-
 fn test_user_function() {
+    let msg = "Welcome to KOs !";
+    let msg_ptr = msg.as_ptr() as u64;
+    let msg_len = msg.len() as u64;
+
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") 0,
+            in("rdi") msg_ptr,
+            in("rsi") msg_len,
+            clobber_abi("sysv64"),
+        );
+    }
+
     loop {
 
     }

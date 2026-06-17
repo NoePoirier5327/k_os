@@ -1,26 +1,27 @@
 //! Module de gestion du mode utilisateur du cpu.
 
 use core::arch::asm;
-use x86_64::VirtAddr;
-use x86_64::structures::gdt::SegmentSelector;
-use crate::gdt::Selectors;
+//use x86_64::structures::gdt::SegmentSelector;
 
 
+/*
 /// Force les deux bits de poids faible d'un sélecteur à 3 (Ring 3 Privilege).
 fn prepare_user_selector(selector: SegmentSelector) -> u64 {
     (selector.0 | 3) as u64
 }
+*/
 
 /// Permet de basculer définitivement vers le ring 3.
 /// 
 /// # Safety
 /// L'appelant doit s'assurer que la mémoire et/ou la pile de la fonction cible n'est pas mappée sur
 /// le flag USER_ACCESSIBLE.
-pub unsafe fn enter_user_mode(selectors: Selectors, entry_point: VirtAddr, user_stack_top: VirtAddr) -> ! {
-    // On récupère les octets bruts des sélecteurs et on force le privilège à 3
-    let data_selector = prepare_user_selector(selectors.get_user_data_selector());
-    let code_selector = prepare_user_selector(selectors.get_user_code_selector());
-    
+pub unsafe fn enter_user_mode(
+    code_selector : u16,
+    data_selector : u16,
+    entry_point : u64, 
+    user_stack_top : u64
+) -> ! {    
     // RFLAGS : Bit 1 est toujours à 1. 
     // Bit 9 (0x200) correspond aux flags d'interruptions. 
     // On l'active pour que les interruptions matérielles restent actives en Ring 3.
@@ -46,10 +47,10 @@ pub unsafe fn enter_user_mode(selectors: Selectors, entry_point: VirtAddr, user_
 
         // Entrées de l'assembleur
         ss = in(reg) data_selector,
-        rsp = in(reg) user_stack_top.as_u64(),
+        rsp = in(reg) user_stack_top,
         rflags = in(reg) rflags,
         cs = in(reg) code_selector,
-        rip = in(reg) entry_point.as_u64(),
+        rip = in(reg) entry_point,
         in("ax") data_selector, // Charge ds, es, fs, gs via AX
         options(noreturn)
     );
