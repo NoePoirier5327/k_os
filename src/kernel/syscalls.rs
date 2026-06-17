@@ -125,10 +125,6 @@ unsafe extern "sysv64" fn syscall_entry() {
         // On appel le dispatcher pour lancer le syscall en paramètre.
         "mov rbx, rdi",
         "mov rdi, rax", // id
-        "mov rax, rsi",
-        "mov rsi, rbx", // arg1
-        "mov rbx, rdx",
-        "mov rdx, rax", // arg2
         "mov rcx, rbx", // arg3
         "call syscall_dispatcher",
         // le résultat du retour du syscall est dans le registre RAX.

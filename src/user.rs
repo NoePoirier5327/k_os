@@ -60,8 +60,8 @@ fn test_user_function() {
         core::arch::asm!(
             "syscall",
             in("rax") 0,
-            in("rdi") msg_ptr,
-            in("rsi") msg_len,
+            in("rsi") msg_ptr,
+            in("rdx") msg_len,
             clobber_abi("sysv64"),
         );
     }
