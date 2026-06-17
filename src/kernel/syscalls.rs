@@ -1,5 +1,5 @@
 use core::arch::naked_asm;
-use x86_64::registers::model_specific::{Star, LStar, SFMask};
+use x86_64::registers::model_specific::{Star, LStar, SFMask, Efer, EferFlags};
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::VirtAddr;
 
@@ -31,8 +31,15 @@ pub unsafe fn init_syscalls(
     kernel_code_selector : SegmentSelector,
     kernel_data_selector : SegmentSelector,
     user_code_selector : SegmentSelector,
-    user_data_selector : SegmentSelector
+    user_data_selector : SegmentSelector,
 ) {
+    // On active les syscalls au niveau du registre EFER du CPU.
+    unsafe {
+        Efer::update(|flags| {
+            flags.insert(EferFlags::SYSTEM_CALL_EXTENSIONS)
+        });
+    }
+
     // STAR indique au CPU quels segments charger lors du syscall/sysret
     match Star::write(
         user_code_selector,
@@ -112,21 +119,23 @@ unsafe extern "sysv64" fn syscall_entry() {
         "push r13",
         "push r14",
         "push r15",
-        "push rdi",
-        "push rsi",
+        "push rbx",
+        "push rcx",
 
         // On appel le dispatcher pour lancer le syscall en paramètre.
+        "mov rbx, rdi",
         "mov rdi, rax", // id
+        "mov rax, rsi",
         "mov rsi, rbx", // arg1
-        "mov rax, rdx",
-        "mov rdx, rcx", // arg2
-        "mov rcx, rax", // arg3
+        "mov rbx, rdx",
+        "mov rdx, rax", // arg2
+        "mov rcx, rbx", // arg3
         "call syscall_dispatcher",
         // le résultat du retour du syscall est dans le registre RAX.
 
         // On récupère l'état d'éxecution du thread utilisateur.
-        "pop rsi",
-        "pop rdi",
+        "pop rcx",
+        "pop rbx",
         "pop r15",
         "pop r14",
         "pop r13",
