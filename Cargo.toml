@@ -5,6 +5,7 @@ edition = "2021"
 
 [lib]
 name = "k_os"
+path = "kernel/lib.rs"
 crate-type = ["staticlib"]
 test = false
 doctest = false

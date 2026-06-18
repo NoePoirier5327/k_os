@@ -1,4 +1,4 @@
-all: bootloader kernel linkage iso
+all: bootloader compile_kernel linkage iso
 
 bootloader:
 	# Assemblage du bootloader.
@@ -7,9 +7,9 @@ bootloader:
 	nasm -f elf64 boot/src/long_mode_init.asm -o bin/long_mode_init.o
 	nasm -f elf64 boot/src/start.asm -o bin/start.o
 
-kernel:
-	# Compilation du noyau rust pour x86_64
-	cargo build --target x86_64-unknown-none --release
+compile_kernel:	
+	# Compilation du kernel.
+	cargo build --release
 
 linkage:
 	mkdir -p bin
