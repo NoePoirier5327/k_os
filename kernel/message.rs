@@ -37,7 +37,7 @@ macro_rules! disp_error {
         $crate::print!("[");
         $crate::vga_buffer::set_writer_color($crate::vga_buffer::Color::Yellow, $crate::vga_buffer::Color::Black);
         $crate::print!("ERROR");
-        $crate::kernel::vga_buffer::set_default_writer_color();
+        $crate::vga_buffer::set_default_writer_color();
         $crate::print!("] : ");
         $crate::println!($($args)*);
     }
