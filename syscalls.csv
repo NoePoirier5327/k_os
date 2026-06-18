@@ -8,3 +8,5 @@ rax,Name,rsi,rdx,rdi,Description
 0x06,sys_shutdown,,,,Eteint le kernel ainsi que la machine.
 0x07,sys_kill,process_id : uint,kill_code : uint,,Arrête un processus de gré ou de force.
 0x08,sys_exit,exit_code : int,,,Signal au noyau une fin de processus utilisateur.
+0x09,sys_umemcpy,adr : long,,,Place une adresse dans les pages utilisateur.
+0x10,sys_ralloc,adr : long,len : size_t,,Alloue une région mémoire à l’utilisateur.
