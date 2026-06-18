@@ -23,6 +23,9 @@ linkage:
 iso:
 	# Création de la structure pour GRUB
 	mkdir -p bin/isofiles/boot/grub
+	mkdir -p bin/isofiles/user/
+	mkdir -p bin/isofiles/user/hello_world
+	cp user/hello_world/main.o bin/isofiles/user/hello_world/
 	cp bin/kernel.bin bin/isofiles/boot/
 	cp boot/grub/grub.cfg bin/isofiles/boot/grub/
 	
