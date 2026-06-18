@@ -17,6 +17,9 @@ use x86_64::{VirtAddr, PhysAddr};
 use multiboot2::MemoryMapTag;
 use crate::user_mode::{USER_STACK_START, USER_STACK_SIZE};
 
+// TODO Implémenter un frame_allocator et un mapper static et global accessible en public ou via une
+// interface régissant sa sécuritée.
+
 // Adresses de début et fin du kernel.
 extern "C" {
     static __kernel_start: u8;
