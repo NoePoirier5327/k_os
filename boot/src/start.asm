@@ -1,5 +1,5 @@
 [bits 64]
-extern _start
+extern kernel_start
 global long_mode_start
 
 extern __bss_start
@@ -32,7 +32,7 @@ long_mode_start:
 
   pop rdi                     ; 1er argument : multiboot_info_ptr
   mov rsi, 0xffff800000000000 ; 2eme argument : physical_memory_offset
-  call _start
+  call kernel_start
   hlt
 
 section .note.GNU-stack noalloc noexec nowrite progbits

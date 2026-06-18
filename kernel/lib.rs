@@ -39,7 +39,7 @@ extern "C" {
 /// * `multiboot_info_ptr` : pointeur multiboot2 permettant la cartographie de la mémoire pour être utilisé par le noyau ensuite.
 /// * `physical_memory_offset` : indice de décalage de pagination mémoire, envoyé depuis l'assembleur.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {   
+pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {   
     crate::disp_info!("Kernel starts at 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
     crate::disp_info!("Kernel ends at 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
 
