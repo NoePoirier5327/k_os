@@ -8,7 +8,7 @@ use crate::memory::BootInfoFrameAllocator;
 
 
 /// Adresse de début de la pile utilisateur.
-pub static USER_STACK_START : u64 = 0x0040_0000;
+pub static USER_STACK_START : u64 = 0x003F_E000;
 
 /// Taille de la pile utilisateur.
 pub static USER_STACK_SIZE : usize = 4096 * 2;
