@@ -140,7 +140,7 @@ p4_table: times 4096 db 0
 p3_table: times 4096 db 0 ; Pour la partie basse de la table p3
 p3_higher_table: times 4096 db 0 ; Pour la partie haute
 p2_table: times 4096 db 0
-stack_bottom: times 16384 db 0
+stack_bottom: times 65536 db 0 ; 64KiB
 stack_top:
 
 ; Section en lecture seule
