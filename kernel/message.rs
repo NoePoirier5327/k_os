@@ -56,3 +56,17 @@ macro_rules! disp_exception {
         $crate::println!($($args)*);
     }
 }
+
+/// Afficheur de message de débug vers l'utilisateur
+#[macro_export]
+macro_rules! disp_debug {
+    ($($args:tt)*) => {
+        $crate::vga_buffer::set_default_writer_color();
+        $crate::print!("[");
+        $crate::vga_buffer::set_writer_color($crate::vga_buffer::Color::Blue, $crate::vga_buffer::Color::Black);
+        $crate::print!("DEBUG");
+        $crate::vga_buffer::set_default_writer_color();
+        $crate::print!("] : ");
+        $crate::println!($($args)*);
+    }
+}
