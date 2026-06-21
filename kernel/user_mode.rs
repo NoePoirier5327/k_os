@@ -29,13 +29,6 @@ pub fn enter_user_space(
         crate::memory::allocate_user_region(mapper, frame_allocator, start_adr, USER_STACK_SIZE)
             .expect("Failed to allocate user stack.");
     }
-
-    // On place le point d'entrée de l'espace utilisateur dans une page utilisateur dédiée.
-    let fn_adr = test_user_function as *const u8;
-    unsafe {
-        crate::memory::place_in_user_pages(mapper, frame_allocator, fn_adr, 128)
-            .expect("Failed to map user space entry in user pages.");
-    }
    
     // On prépare les arguments d'entrées en ring 3
     let stack_top = VirtAddr::new(USER_STACK_START+ USER_STACK_SIZE as u64);
@@ -50,42 +43,6 @@ pub fn enter_user_space(
             entry_point.as_u64(), 
             stack_top.as_u64()
         );
-    }
-}
-
-fn test_user_function() {
-    let msg = "Welcome to KOs !";
-    let msg_ptr = msg.as_ptr() as u64;
-    let msg_len = msg.len() as u64;
-    let mut result : u64;
-
-    unsafe {
-        core::arch::asm!(
-            "syscall",
-            in("rax") 1,
-            in("rsi") 5,
-            in("rdx") 15,
-            lateout("rax") result,
-            clobber_abi("sysv64")
-        );
-    }
-
-    unsafe {
-        core::arch::asm!(
-            "syscall",
-            in("rax") 0,
-            in("rsi") msg_ptr,
-            in("rdx") msg_len,
-            clobber_abi("sysv64"),
-        );
-    }
-
-    if result != 0 {
-        panic!("Syscall error.");
-    }
-
-    loop {
-
     }
 }
 
