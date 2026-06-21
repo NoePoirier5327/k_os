@@ -15,6 +15,7 @@ _start:
   mov rdx, hello_len
   syscall
 
-  mov rax, 8 ; SYS_EXIT
-  mov rsi, 0
-  syscall
+; No sys_exit implemented yet
+loop:
+  nop
+  jmp loop
