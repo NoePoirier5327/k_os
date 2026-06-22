@@ -65,26 +65,26 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
         &*(tag as *const multiboot2::MemoryMapTag)
     };
 
-    let vritual_memory_offset = VirtAddr::new(physical_memory_offset);
+    let virtual_memory_offset = VirtAddr::new(physical_memory_offset);
 
     // Création des alloueurs mémoire.
     crate::disp_info!("Frame allocator initialization.");
     let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
-    let mut mapper = unsafe { memory::init(vritual_memory_offset) };
+    let mut mapper = unsafe { memory::init(virtual_memory_offset) };
 
     // Allocation de la zone du tas.
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("Heap initialization failed.");
 
     // On affiche les informations d'aligement de la mémoire.
-    crate::disp_info!("User stack will start at 0x{:x}.", user_mode::USER_STACK_START);
-    crate::disp_info!("User stack will end at 0x{:x}.", user_mode::USER_STACK_START+user_mode::USER_STACK_SIZE as u64-1);
-    crate::disp_info!("User pages starts at 0x{:x}.", memory::USER_PAGES_START);
-    crate::disp_info!("User pages ends at 0x{:x}.", memory::USER_PAGES_END);
-    crate::disp_info!("Kernel pages starts at 0x{:x}.", memory::KERNEL_PAGES_START);
-    crate::disp_info!("Kernel pages ends at 0x{:x}.", allocator::HEAP_START-1);
-    crate::disp_info!("Heap starts at 0x{:x}.", allocator::HEAP_START);
-    crate::disp_info!("Head ends at 0x{:x}.", allocator::HEAP_START+allocator::HEAP_SIZE-1);
+    crate::disp_debug!("User stack will start at 0x{:x}.", user_mode::USER_STACK_START);
+    crate::disp_debug!("User stack will end at 0x{:x}.", user_mode::USER_STACK_START+user_mode::USER_STACK_SIZE as u64-1);
+    crate::disp_debug!("User pages starts at 0x{:x}.", memory::USER_PAGES_START);
+    crate::disp_debug!("User pages ends at 0x{:x}.", memory::USER_PAGES_END);
+    crate::disp_debug!("Kernel pages starts at 0x{:x}.", memory::KERNEL_PAGES_START);
+    crate::disp_debug!("Kernel pages ends at 0x{:x}.", allocator::HEAP_START-1);
+    crate::disp_debug!("Heap starts at 0x{:x}.", allocator::HEAP_START);
+    crate::disp_debug!("Head ends at 0x{:x}.", allocator::HEAP_START+allocator::HEAP_SIZE-1);
 
     // On initialise les appels systèmes
     crate::disp_info!("Syscalls initialization.");
