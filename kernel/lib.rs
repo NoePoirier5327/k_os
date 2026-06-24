@@ -59,7 +59,10 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
     init();
 
     // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
-    let boot_info = unsafe { BootInformation::load(multiboot_info_ptr as *const BootInformationHeader).unwrap() };
+    let boot_info = unsafe { 
+        BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
+            .expect("Failed to load Multiboot2 boot info.")
+    };
     let memory_map_tag = unsafe {
         let tag = boot_info.memory_map_tag().expect("Memory map tag required.");
         &*(tag as *const multiboot2::MemoryMapTag)
