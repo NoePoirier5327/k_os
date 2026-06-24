@@ -40,8 +40,8 @@ extern "C" {
 /// * `physical_memory_offset` : indice de décalage de pagination mémoire, envoyé depuis l'assembleur.
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {   
-    crate::disp_info!("Kernel starts at 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
-    crate::disp_info!("Kernel ends at 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
+    crate::disp_debug!("Kernel starts at 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
+    crate::disp_debug!("Kernel ends at 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
 
     // Vérification du format du pointeur multiboot.
     if !multiboot_info_ptr.is_multiple_of(8) {
@@ -52,8 +52,8 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
         panic!("The multiboot2 info pointer is NULL.");
     }
 
-    crate::disp_info!("Multiboot2 info pointer = 0x{}", multiboot_info_ptr);
-    crate::disp_info!("Physical memory offset = 0x{}", physical_memory_offset);
+    crate::disp_debug!("Multiboot2 info pointer = 0x{:x}", multiboot_info_ptr);
+    crate::disp_debug!("Physical memory offset = 0x{:x}", physical_memory_offset);
 
     // On initialise les composantes du kernel
     init();
