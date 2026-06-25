@@ -10,6 +10,9 @@ global start
 
 ; On export les symbôles utiles dans le projet.
 global stack_top
+global p4_table
+global p3_table
+global p2_table
 
 ; Procédure principale du fichier.
 ; Passe le CPU en long mode
