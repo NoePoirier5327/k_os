@@ -5,7 +5,7 @@ bootloader:
 	mkdir -p bin
 	nasm -f elf64 boot/src/multiboot_header.asm -o bin/multiboot_header.o
 	nasm -f elf64 boot/src/long_mode_init.asm -o bin/long_mode_init.o
-	nasm -f elf64 boot/src/start.asm -o bin/start.o
+	nasm -f elf64 boot/src/boot.asm -o bin/boot.o
 
 compile_kernel:	
 	# Compilation du kernel.
@@ -17,7 +17,7 @@ linkage:
 	ld -n -T linker.ld -Map bin/kernel.map -o bin/kernel.bin\
 		bin/multiboot_header.o\
 		bin/long_mode_init.o\
-		bin/start.o\
+		bin/boot.o\
 		target/x86_64-unknown-none/release/libk_os.a
 
 iso:
