@@ -97,7 +97,7 @@ const BUFFER_WIDTH: usize = 80;
 /// Structure représentant la matrice de caractère composant l'écran.
 #[repr(transparent)]
 struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+    chars: [Volatile<ScreenChar>; BUFFER_WIDTH * BUFFER_HEIGHT],
 }
 
 /// Structure de contrôle de l'affichage de caractères.
@@ -113,8 +113,10 @@ impl Writer {
     fn new_line(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
-                let character = self.buffer.chars[row][col].read();
-                self.buffer.chars[row - 1][col].write(character);
+                let index = row * BUFFER_WIDTH + col;
+                let character = self.buffer.chars[index].read();
+                let index = (row - 1) * BUFFER_WIDTH + col;
+                self.buffer.chars[index].write(character);
             }
         }
         self.clear_row(BUFFER_HEIGHT - 1);
@@ -131,7 +133,8 @@ impl Writer {
             color_code: self.color_code,
         };
         for col in 0..BUFFER_WIDTH {
-            self.buffer.chars[row][col].write(blank);
+            let index = row * BUFFER_WIDTH + col;
+            self.buffer.chars[index].write(blank);
         }
     }
 
@@ -153,7 +156,8 @@ impl Writer {
                 let col = self.column_position;
 
                 let color_code = self.color_code;
-                self.buffer.chars[row][col].write(ScreenChar {
+                let index = row * BUFFER_WIDTH + col;
+                self.buffer.chars[index].write(ScreenChar {
                     ascii_character: byte,
                     color_code,
                 });
@@ -188,10 +192,14 @@ impl Writer {
     }
 
     /// Néttoie l'entieretée du buffer vga.
-    // TODO Optimiser la méthode.
     pub fn clear_screen(&mut self) {
-        for _line in 0..BUFFER_HEIGHT {
-            self.new_line();
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+
+        for c in &mut self.buffer.chars {
+            c.write(blank);
         }
     }
 }
@@ -270,7 +278,7 @@ pub fn set_default_writer_color() {
 }
 
 /// Néttoie le buffer vga du writer courant.
-pub fn clear_writer_screen() {
+pub fn clear_screen() {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {

@@ -100,8 +100,10 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
         );
     }
 
+    vga_buffer::clear_screen();
+
     // On passe en ring 3
-    user_mode::enter_user_space(&mut mapper, &mut frame_allocator);
+    //user_mode::enter_user_space(&mut mapper, &mut frame_allocator);
 
     hlt();
 }
