@@ -1,5 +1,6 @@
 //! Implémentation d'un multitasking préemptif kernel level.
 // TODO Implémenter le multithreading pour d'autres architextures.
+// TODO Implémenter un temps d'execution max pour éviter les blocages (ex: boucles infinies).
 
 //use crate::println;
 use crate::interrupts::{PICS, InterruptIndex};
