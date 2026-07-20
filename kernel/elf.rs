@@ -11,7 +11,6 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// - elf_bytes : contenu du fichier elf64 à chargé en mémoire.
 /// - mapper : mapper mémoire utilisé pour lié la nouvelle frame dans la page qui lui est destiné.
 /// - frame_allocator : alloueur de frame mémoire.
-/// - vm_offset : virtual memory offset.
 ///
 /// # Return
 /// Adresse virtuelle du programme en mémoire.
@@ -20,8 +19,7 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 pub unsafe fn load_elf(
     elf_bytes : &[u8],
     mapper: &mut impl Mapper<Size4KiB>,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-    vm_offset: VirtAddr
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
 
@@ -57,7 +55,7 @@ pub unsafe fn load_elf(
             // On met TOUTE la page allouée à zéro via le vm_offset.
             // Cela gère automatiquement le padding et la section BSS sans calculs complexes.
             let phys_addr = frame.start_address().as_u64();
-            let kernel_vaddr = vm_offset + phys_addr;
+            let kernel_vaddr = crate::VIRTUAL_MEMORY_OFFSET + phys_addr;
             core::ptr::write_bytes(kernel_vaddr.as_mut_ptr::<u8>(), 0, 4096);
         }
 
