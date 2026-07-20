@@ -1,5 +1,5 @@
 use core::arch::naked_asm;
-use x86_64::registers::model_specific::{Star, LStar, SFMask, Efer, EferFlags};
+use x86_64::registers::model_specific::{Star, LStar, SFMask, Efer, EferFlags, KernelGsBase};
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::VirtAddr;
 
@@ -24,6 +24,25 @@ const EFAILED : i64 = -1;
 /// Argument non conforme
 const ARGERROR : i64 = -2;
 
+/// Structure stockée dans la base Kernel GS.
+/// Alignée sur 16 octets pour garantir des offsets précis.
+#[repr(C, align(16))]
+pub struct KernelGsData {
+    pub kernel_stack: u64, // Offset 0x00
+    pub _pad: u64,         // Offset 0x08
+    pub user_rsp: u64,     // Offset 0x10
+}
+
+/// Pile dédiée aux appels systèmes du noyau (16 KiB)
+static mut SYSCALL_STACK: [u8; 16384] = [0; 16384];
+
+/// Données du Kernel GS
+static mut KERNEL_GS_DATA: KernelGsData = KernelGsData {
+    kernel_stack: 0,
+    _pad: 0,
+    user_rsp: 0,
+};
+
 /// Initialise les appelles systèmes au niveau de l'assembleur.
 ///
 /// # Arguments
@@ -41,6 +60,13 @@ pub unsafe fn init_syscalls(
     user_code_selector : SegmentSelector,
     user_data_selector : SegmentSelector,
 ) {
+    // On initialise la structure GS du noyau
+    let stack_top = unsafe { SYSCALL_STACK.as_ptr().add(16384) as u64 };
+    unsafe {
+        KERNEL_GS_DATA.kernel_stack = stack_top;
+        KernelGsBase::write(VirtAddr::new(core::ptr::addr_of!(KERNEL_GS_DATA) as u64));
+    }
+
     // On active les syscalls au niveau du registre EFER du CPU.
     unsafe {
         Efer::update(|flags| {
