@@ -16,15 +16,15 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// Adresse virtuelle du programme en mémoire.
 ///
 /// # Safety
+/// Charge un executable elf64 pour x86_64 dans la zone mémoire utilisateur.
 pub unsafe fn load_elf(
-    elf_bytes : &[u8],
+    elf_bytes: &[u8],
     mapper: &mut impl Mapper<Size4KiB>,
     frame_allocator: &mut impl FrameAllocator<Size4KiB>
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
 
     for phdr in &elf.program_headers {
-        // On ne s'occupe que de segment chargeable en mémoire.
         if phdr.p_type != PT_LOAD {
             continue;
         }
@@ -32,37 +32,51 @@ pub unsafe fn load_elf(
         let start_vaddr = VirtAddr::new(phdr.p_vaddr);
         let end_vaddr = start_vaddr + phdr.p_memsz;
 
-        // On arrondi aux limites des pages (4 KiB)
         let start_page: Page = Page::containing_address(start_vaddr);
         let end_page: Page = Page::containing_address(end_vaddr - 1u64);
 
-        // Défininition des permissions
         let mut flags = PageTableFlags::PRESENT | PageTableFlags::USER_ACCESSIBLE;
         if phdr.p_flags & goblin::elf::program_header::PF_W != 0 {
             flags |= PageTableFlags::WRITABLE;
         }
-        // Note : sur x86_64, la mémoire est exécutable par défaut, 
-        // il faudrait activer le flag NO_EXECUTE si PF_X n'est pas présent.
 
-        // On alloue et map chaque page USER_ACCESSIBLE.
         for page in Page::range_inclusive(start_page, end_page) {
-            // Si la page est déjà mappée (ex: chevauchement de segments), on ignore
-            // (À gérer proprement avec un check mapper.translate_page())
-            
             let frame = frame_allocator.allocate_frame().expect("Not enough memory left.");
             mapper.map_to(page, frame, flags, frame_allocator).unwrap().flush();
 
-            // On met TOUTE la page allouée à zéro via le vm_offset.
-            // Cela gère automatiquement le padding et la section BSS sans calculs complexes.
+            // Adresse virtuelle accessible par le Kernel pour écrire dans la frame.
             let phys_addr = frame.start_address().as_u64();
             let kernel_vaddr = crate::VIRTUAL_MEMORY_OFFSET + phys_addr;
-            core::ptr::write_bytes(kernel_vaddr.as_mut_ptr::<u8>(), 0, 4096);
-        }
+            let page_ptr = kernel_vaddr.as_mut_ptr::<u8>();
 
-        // Copie les données de l'ELF en mémoire
-        let src_ptr = elf_bytes[phdr.p_offset as usize..].as_ptr();
-        let dst_ptr = start_vaddr.as_mut_ptr::<u8>();
-        core::ptr::copy_nonoverlapping(src_ptr, dst_ptr, phdr.p_filesz as usize);
+            // On initialise la page à zéro.
+            core::ptr::write_bytes(page_ptr, 0, 4096);
+
+            // On calcule quelle portion du segment elf doit être copiée dans la page courante.
+            let page_start_vaddr = page.start_address();
+            
+            let page_offset_in_segment = if page_start_vaddr > start_vaddr {
+                (page_start_vaddr - start_vaddr) as usize
+            } else { 0 };
+
+            if page_offset_in_segment < phdr.p_filesz as usize {
+                let page_internal_offset = if start_vaddr > page_start_vaddr {
+                    (start_vaddr - page_start_vaddr) as usize
+                } else { 0 };
+
+                let bytes_to_copy = core::cmp::min(
+                    phdr.p_filesz as usize - page_offset_in_segment,
+                    4096 - page_internal_offset
+                );
+
+                let src_offset = phdr.p_offset as usize + page_offset_in_segment;
+                let src_ptr = elf_bytes.as_ptr().add(src_offset);
+                let dst_ptr = page_ptr.add(page_internal_offset);
+
+                // On copie directement dans la frame physique du higher half.
+                core::ptr::copy_nonoverlapping(src_ptr, dst_ptr, bytes_to_copy);
+            }
+        }
     }
 
     VirtAddr::new(elf.entry)
