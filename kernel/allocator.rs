@@ -16,7 +16,7 @@ static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAl
 
 
 // Information de délimitation de la zone virtuelle du tas.
-pub const HEAP_START: usize = 0x_4444_4444_0000;
+pub const HEAP_START: usize = 0xFFFF_9000_0000_0000;
 pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 
 
