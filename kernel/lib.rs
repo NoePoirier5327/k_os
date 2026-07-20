@@ -18,6 +18,7 @@ pub mod scheduler;
 pub mod message;
 pub mod vga_buffer;
 pub mod syscalls;
+pub mod elf;
 
 use core::panic::PanicInfo;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
@@ -31,15 +32,20 @@ extern "C" {
     static __kernel_end : u8;
 }
 
+/// Offset de la mémoire pysique
+pub const PHYSICAL_MEMORY_OFFSET: u64 = 0xFFFF_FFFF_8000_0000;
+
+/// Offset de la mémoire virtuelle
+pub const VIRTUAL_MEMORY_OFFSET: VirtAddr = VirtAddr::new(PHYSICAL_MEMORY_OFFSET);
+
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
 ///
 /// # Argument
 /// * `multiboot_info_ptr` : pointeur multiboot2 permettant la cartographie de la mémoire pour être utilisé par le noyau ensuite.
-/// * `physical_memory_offset` : indice de décalage de pagination mémoire, envoyé depuis l'assembleur.
 #[unsafe(no_mangle)]
-pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset : u64) -> ! {   
+pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {   
     crate::disp_debug!("Kernel starts at 0x{:x}", core::ptr::addr_of!(__kernel_start) as u64);
     crate::disp_debug!("Kernel ends at 0x{:x}", core::ptr::addr_of!(__kernel_end) as u64);
 
@@ -53,14 +59,11 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
     }
 
     crate::disp_debug!("Multiboot2 info pointer = 0x{:x}", multiboot_info_ptr);
-    crate::disp_debug!("Physical memory offset = 0x{:x}", physical_memory_offset);
-
-    // On initialise les composantes du kernel
-    init();
+    crate::disp_debug!("Physical memory offset = 0x{:x}", PHYSICAL_MEMORY_OFFSET);
 
     // Fabriquation de la carte de la mémoire à partir du pointeur multiboot_info
     let boot_info = unsafe { 
-        BootInformation::load(multiboot_info_ptr as *const BootInformationHeader)
+        BootInformation::load((multiboot_info_ptr + PHYSICAL_MEMORY_OFFSET) as *const BootInformationHeader)
             .expect("Failed to load Multiboot2 boot info.")
     };
     let memory_map_tag = unsafe {
@@ -68,16 +71,17 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
         &*(tag as *const multiboot2::MemoryMapTag)
     };
 
-    let virtual_memory_offset = VirtAddr::new(physical_memory_offset);
-
     // Création des alloueurs mémoire.
     crate::disp_info!("Frame allocator initialization.");
     let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
-    let mut mapper = unsafe { memory::init(virtual_memory_offset) };
+    let mut mapper = unsafe { memory::init(VIRTUAL_MEMORY_OFFSET) };
 
     // Allocation de la zone du tas.
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("Heap initialization failed.");
+
+    // On initialise le reste du kernel
+    init();
 
     // On affiche les informations d'aligement de la mémoire.
     crate::disp_debug!("User stack will start at 0x{:x}.", user_mode::USER_STACK_START);
@@ -89,7 +93,6 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
     crate::disp_debug!("Heap starts at 0x{:x}.", allocator::HEAP_START);
     crate::disp_debug!("Head ends at 0x{:x}.", allocator::HEAP_START+allocator::HEAP_SIZE-1);
 
-    // On initialise les appels systèmes
     crate::disp_info!("Syscalls initialization.");
     unsafe {
         syscalls::init_syscalls(
@@ -100,10 +103,23 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64, physical_memory_offset 
         );
     }
 
-    vga_buffer::clear_screen();
+    crate::disp_info!("Creating new memory mapper for user pages.");
+    let (user_pml4_frame, mut user_mapper) = user_mode::create_user_page_table(&mut frame_allocator);
 
-    // On passe en ring 3
-    //user_mode::enter_user_space(&mut mapper, &mut frame_allocator);
+    crate::disp_debug!("Reading elf64 executable file.");
+    static ELF_DATA: &elf::AlignedElfBinary<[u8]> = &elf::AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
+    let entry_point = unsafe { elf::load_elf(&ELF_DATA.0, &mut user_mapper, &mut frame_allocator) };
+
+    crate::disp_info!("Loading user PML4.");
+    unsafe {
+        use x86_64::registers::control::{Cr3Flags, Cr3};
+        Cr3::write(user_pml4_frame, Cr3Flags::empty());
+    }
+
+    crate::disp_debug!("Elf entry is at 0x{:x}", entry_point.as_u64());
+
+    crate::disp_info!("Getting to ring 3.");
+    user_mode::enter_user_space(&mut user_mapper, &mut frame_allocator, entry_point);
 
     hlt();
 }
