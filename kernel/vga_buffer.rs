@@ -9,6 +9,10 @@ use spin::{Lazy, Mutex};
 use volatile::Volatile;
 
 
+/// Adresse du buffer vga.
+const VGA_BUFFER_ADRESS: u64 = 0xb8000 + crate::PHYSICAL_MEMORY_OFFSET;
+
+
 /// Type énuméré représentant les couleurs affichables à l'écran par le buffer vga.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -220,7 +224,7 @@ static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
     Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::LightGray, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        buffer: unsafe { &mut *(VGA_BUFFER_ADRESS as *mut Buffer) },
     })
 });
 
