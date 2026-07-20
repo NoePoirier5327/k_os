@@ -1,10 +1,8 @@
 [bits 32]
-section .text
+section .boottext
 
 ; On importe les symbôles ûtiles pour le fichier
 extern boot
-extern __bss_start
-extern __bss_end
 
 global start
 
@@ -20,18 +18,7 @@ start:
   cli
   mov esp, stack_top
 
-  mov esi, eax ; On sauvegarde le magic number
-
-  ; Nettoyage de la section .bss
-  mov edi, __bss_start
-  mov ecx, __bss_end
-  sub ecx, edi
-  mov al, 0
-  rep stosb
-
-  mov eax, esi ; On récupère le magic number
-
-  push ebx ; On sauvegarde le pointeur multiboot2
+  push ebx ; On sauvegarde le pointeur multiboot2.
 
   call check_multiboot
   call check_cpuid
@@ -151,13 +138,16 @@ set_up_page_tables:
   or eax, 0b11 ; present + writable
   mov [p4_table], eax
 
-  ; On place la 256ème entrée de P4 sur la P3
-  mov [p4_table + 256 * 8], eax
+  ; On place la 511ème entrée de P4 sur la P3
+  mov [p4_table + 511 * 8], eax
 
   ; On place la première entrée de la P3 sur la P2
   mov eax, p2_table
   or eax, 0b11 ; present + writable
   mov [p3_table], eax
+
+  ; On la 510ème entrée de la P3 sur la même P2
+  mov [p3_table + 510 * 8], eax
 
   mov ecx, 0 
 .map_p2_table:
@@ -185,7 +175,7 @@ error:
   mov byte  [0xb800c], al
   hlt
 
-section .bss
+section .bootbss
 align 4096
 p4_table:
   resb 4096
@@ -197,7 +187,7 @@ stack_bottom:
   resb 65536 ; 64 KiB
 stack_top:
 
-section .rodata
+section .bootdata
 gdt64:
   dq 0
 .code: equ $ - gdt64 
