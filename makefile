@@ -35,6 +35,9 @@ iso:
 run:
 	qemu-system-x86_64 -cdrom bin/k_os.iso -no-reboot -serial stdio
 
+run-debug:
+	qemu-system-x86_64 -s -S -cdrom bin/k_os.iso -no-reboot -serial stdio
+
 run-log:
 	qemu-system-x86_64 -drive format=raw,file=bin/k_os.iso -d int,cpu_reset -D qemu.log -no-reboot
 
