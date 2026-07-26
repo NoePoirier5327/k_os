@@ -54,7 +54,8 @@ run:
 	qemu-system-x86_64 -cdrom bin/k_os.iso -no-reboot -serial stdio
 
 debug: bootloader compile_kernel_debug linkage_debug iso_debug
-	qemu-system-x86_64 -s -S -cdrom bin/k_os_debug.iso -no-reboot -serial stdio
+	qemu-system-x86_64 -s -S -cdrom bin/k_os_debug.iso -no-reboot -serial stdio&
+	gnome-terminal -- bash -c "rust-gdb bin/kernel_debug.bin -ex 'target remote :1234'"
 
 run-log:
 	qemu-system-x86_64 -drive format=raw,file=bin/k_os.iso -d int,cpu_reset -D qemu.log -no-reboot
