@@ -50,6 +50,8 @@ sqrt:
 ;
 ; Registres modifiées
 ;   XMM1
+;
+; TODO Remplacer cette implémentation par l'algorithme binary exponentiation.
 pow:
   cmp rdi, 0
   je .end_no_loop
