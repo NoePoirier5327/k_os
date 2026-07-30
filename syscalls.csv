@@ -1,5 +1,5 @@
 rax,Name,rsi,rdx,rdi,Description
-0x00,sys_disp,msg : char *,msg_size : size_t,,Affiche le message en paramètre à l’écran.
+0x00,sys_disp,msg : c_str,,,Affiche le message en paramètre à l’écran. La chaîne en paramètre est une chaîne donc se termine par le caractère \0.
 0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,Change la couleur d’affichage dans le buffer vga.
 0x02,sys_palloc,,,,Alloue une page de 4ko accessible à l’utilisateur.
 0x03,sys_newthread,proc_adr : uint,,,Créer un nouveau thread dans l’ordonnanceur.
