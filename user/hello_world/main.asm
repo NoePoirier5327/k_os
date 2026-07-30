@@ -11,8 +11,8 @@ hello_len: equ $-hello
 section .text
 _start:
   mov rax, 0 ; SYS_DISP
-  mov rsi, hello
-  mov rdx, hello_len
+  mov rdi, hello
+  mov rsi, hello_len
   syscall
 
 ; No sys_exit implemented yet

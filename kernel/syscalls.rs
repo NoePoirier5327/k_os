@@ -169,9 +169,10 @@ unsafe extern "sysv64" fn syscall_entry() {
         "push rsi", // Pour aligner la pile sur un multiple de 16
 
         // On appel le dispatcher pour lancer le syscall en paramètre.
-        "mov rbx, rdi",
+        "mov rcx, rdx", // arg3
+        "mov rdx, rsi", // arg2
+        "mov rsi, rdi", // arg1
         "mov rdi, rax", // id
-        "mov rcx, rbx", // arg3
         "call syscall_dispatcher",
         // le résultat du retour du syscall est dans le registre RAX.
 
