@@ -40,7 +40,8 @@ sqrt:
   ret
 
 ; Fonction de calcul de puissance.
-; Implémentation naïve par multiplication successive.
+; Implémentation de l'algorithme binary exponentiation.
+; https://cp-algorithms.com/algebra/binary-exp.html
 ;
 ; Arguments
 ;   - XMM0 : Element dont on veut calculer la puissance. (double précision)
@@ -50,23 +51,23 @@ sqrt:
 ;
 ; Registres modifiées
 ;   XMM1
-;
-; TODO Remplacer cette implémentation par l'algorithme binary exponentiation.
 pow:
-  cmp rdi, 0
-  je .end_no_loop
-
-  movsd xmm1, xmm0
-  dec rdi
+  movsd xmm1, [one]
 
 .loop:
-  mulsd xmm0, xmm1
-  dec rdi
-  jnz .loop ; Si rdi != 0, alors on boucle.
+  cmp rdi, 0
+  jbe .end          ; si rdi <= 0 alors fin de la boucle
 
-  ret ; return xmm0
+  test rdi, 1
+  jz .even          ; Si rdi pair alors on saute la multiplication 
 
-; Si n = 0 alors x^n = 1
-.end_no_loop:
-  movsd xmm0, [one]
-  ret ; return xmm0
+  mulsd xmm1, xmm0  ; Sinon, res = res * a
+
+.even:
+  mulsd xmm0, xmm0
+  shr rdi, 1
+  jmp .loop
+
+.end:
+  movsd xmm0, xmm1
+  ret
