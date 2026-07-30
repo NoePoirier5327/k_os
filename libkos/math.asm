@@ -18,9 +18,17 @@ section .text
 ; 
 ; Registre de retour -> XMM0
 ;
-; Registres modifiées
+; Registres modifiés
+;   XMM0, XMM1, XMM2, RDI
+;
+; Registres modifiés et restaurés
 ;   XMM1, XMM2
 sqrt:
+  ; Sauvegarde du contexte avant execution.
+  sub rsp, 32
+  movapd [rsp],      xmm1
+  movapd [rsp + 16], xmm2
+
   movsd xmm1, xmm0 ; u0 = a
   dec rdi ; Index de boucle
 
@@ -36,6 +44,11 @@ sqrt:
   jnz .loop
 
 .end:
+  ; Restauration du contexte après execution.
+  movapd xmm1, [rsp]
+  movapd xmm2, [rsp + 16]
+  add rsp, 32
+
   movsd xmm0, xmm1 ; return u_n
   ret
 
@@ -78,7 +91,7 @@ pow:
 .end:
   movapd xmm0, xmm1
 
-  ; Restauration du contexte avant execution.
+  ; Restauration du contexte après execution.
   movapd xmm1, [rsp]
   add rsp, 16
 
