@@ -49,9 +49,16 @@ sqrt:
 ;
 ; Registre de retour -> XMM0
 ;
-; Registres modifiées
+; Registres modifiés
+;   XMM0, XMM1, RDI
+; 
+; Registres modifiés et restaurés
 ;   XMM1
 pow:
+  ; Sauvegarde du contexte avant execution 
+  sub rsp, 16
+  movapd [rsp], xmm1
+
   movsd xmm1, [one]
 
 .loop:
@@ -69,5 +76,10 @@ pow:
   jmp .loop
 
 .end:
-  movsd xmm0, xmm1
-  ret
+  movapd xmm0, xmm1
+
+  ; Restauration du contexte avant execution.
+  movapd xmm1, [rsp]
+  add rsp, 16
+
+  ret ; return xmm0
