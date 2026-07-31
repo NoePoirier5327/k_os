@@ -90,9 +90,6 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
 
 /// Fonction d'initialisation d'une nouvelle OffsetPageTable.
 ///
-/// # Argument
-/// * `physical_memory_offset` : offset d'accès aux pages mémoire.
-///
 /// # Return
 /// nouvelle instance de OffsetPageTable de temps de vie static.
 ///
@@ -101,10 +98,10 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
 /// virtuelle pour être accessible via l'offset en paramètre.<br>
 /// De plus, cette fonction doit être appelée une seule foit pour éviter les références muables
 /// `&mut` qui sont des comportements indéfinis pour rust.
-pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
+pub unsafe fn init() -> OffsetPageTable<'static> {
     unsafe {
-        let level_4_table = active_level_4_table(physical_memory_offset);
-        OffsetPageTable::new(level_4_table, physical_memory_offset)
+        let level_4_table = active_level_4_table();
+        OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET)
     }
 }
 
@@ -222,20 +219,17 @@ pub fn is_user_address_range(ptr: *const u8, len: usize) -> bool {
 
 /// Fonction renvoyant un accès mutable sur la table mémoire active de niveau 4.
 ///
-/// # Argument
-/// * `physical_memory_offset` : offset d'accès aux pages mémoire.
-///
 /// # Safety
 /// L'appelant doit s'assurer que l'adresse physique complète est configuré
 /// sur l'adresse virtuelle de la page 4 en paramètre récursive.<br>
 /// De plus, cette fonction doit seulement être appelée pour éviter les 
 /// références mutables `&mut` (qui est un comportement indéfini sur rust).
-unsafe fn active_level_4_table(physical_memory_offset : VirtAddr) -> &'static mut PageTable {
+unsafe fn active_level_4_table() -> &'static mut PageTable {
     let (level_4_table_frame, _) = Cr3::read();
 
     let phys = level_4_table_frame.start_address();
     // L'adresse virtuelle est l'adresse physique + l'offset
-    let virt = physical_memory_offset + phys.as_u64();
+    let virt = crate::VIRTUAL_MEMORY_OFFSET + phys.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
     &mut *page_table_ptr
 }
@@ -244,16 +238,15 @@ unsafe fn active_level_4_table(physical_memory_offset : VirtAddr) -> &'static mu
 ///
 /// # Arguments
 /// * `addr` : adresse virtuelle de départ
-/// * `physical_memory_offset` : décalage d'adresse physique de l'instance courante
-///
+/// 
 /// # Return
 /// Renvoie ou l'adresse physique cartographiée en mémoire ou None si non cartographiée.
 /// 
 /// # Safety
 /// L'appelant doit garantir que l'adresse physique complète est bien cartographiée
 /// en mémoire à l'offset en paramètre.
-pub unsafe fn translate_addr(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Option<PhysAddr> {
-    translate_addr_inner(addr, physical_memory_offset)
+pub unsafe fn translate_addr(addr: VirtAddr) -> Option<PhysAddr> {
+    translate_addr_inner(addr)
 }
 
 /// Fonction appelée par `translate_addr`, elle doit seulement être appelée par des bloques
@@ -266,7 +259,7 @@ pub unsafe fn translate_addr(addr: VirtAddr, physical_memory_offset: VirtAddr) -
 ///
 /// # Return
 /// Renvoie ou l'adresse physique cartographiée en mémoire ou None si non cartographiée.
-fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Option<PhysAddr> {
+fn translate_addr_inner(addr: VirtAddr) -> Option<PhysAddr> {
     // On lit la table active de niveau 4 par le registre cr3
     let (level_4_table_frame, _) = Cr3::read();
 
@@ -276,7 +269,7 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Opt
     // On parcours les pages mémoire de plusieurs niveaux
     for &index in &table_indexes {
         // On convertit la portion de page courante en référence vers la table
-        let virt = physical_memory_offset + frame.start_address().as_u64();
+        let virt = crate::VIRTUAL_MEMORY_OFFSET + frame.start_address().as_u64();
         let table_ptr: *const PageTable = virt.as_ptr();
         let table = unsafe {&*table_ptr};
 
