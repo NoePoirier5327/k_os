@@ -130,9 +130,11 @@ unsafe extern "sysv64" fn syscall_dispatcher(
                 return ARGERROR;
             }
 
-            let ft_color = super::vga_buffer::Color::from_code_to_color(arg1 as u8);
-            let bg_color = super::vga_buffer::Color::from_code_to_color(arg2 as u8);
-            super::vga_buffer::set_writer_color(ft_color, bg_color);
+            super::vga_buffer::set_writer_color(
+                super::vga_buffer::Color::from_code_to_color(arg1 as u8),
+                super::vga_buffer::Color::from_code_to_color(arg2 as u8)
+            );
+
             ESUCCESS
         }
 
