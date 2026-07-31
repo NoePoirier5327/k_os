@@ -2,18 +2,19 @@
 ; by Noé Poirier
 ; the 18/06/2026
 
-global _start
+extern sys_disp
 
 section .data
 hello: db "Hello world!"
 hello_len: equ $-hello
 
 section .text
+  global _start
+
 _start:
-  mov rax, 0 ; SYS_DISP
   mov rdi, hello
   mov rsi, hello_len
-  syscall
+  call sys_disp
 
 ; No sys_exit implemented yet
 loop:
