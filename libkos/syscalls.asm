@@ -8,7 +8,8 @@ section .text
 ; Affiche la chaîne de caractère en paramètre.
 ; 
 ; Argument
-;   RDI : pointeur vers la chaîne de caractère à afficher au format c.
+;   RDI : pointeur vers la chaîne de caractère à afficher.
+;   RSI : taille de la chaîne à afficher.
 ;
 ; Registre modifié et non restauré
 ;   RAX
