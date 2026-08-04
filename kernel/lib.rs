@@ -73,11 +73,11 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
 
     // Création des alloueurs mémoire.
     crate::disp_info!("Frame allocator initialization.");
-    let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
-    let mut mapper = unsafe { memory::init() };
+    //let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
+    let mut mapper = unsafe { memory::init(memory_map_tag) };
 
     // Allocation de la zone du tas.
-    allocator::init_heap(&mut mapper, &mut frame_allocator)
+    allocator::init_heap(&mut mapper)
         .expect("Heap initialization failed.");
 
     // On initialise le reste du kernel
@@ -104,11 +104,11 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
     }
 
     crate::disp_info!("Creating new memory mapper for user pages.");
-    let (user_pml4_frame, mut user_mapper) = user_mode::create_user_page_table(&mut frame_allocator);
+    let (user_pml4_frame, mut user_mapper) = user_mode::create_user_page_table();
 
     crate::disp_debug!("Reading elf64 executable file.");
     static ELF_DATA: &elf::AlignedElfBinary<[u8]> = &elf::AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
-    let entry_point = unsafe { elf::load_elf(&ELF_DATA.0, &mut user_mapper, &mut frame_allocator) };
+    let entry_point = unsafe { elf::load_elf(&ELF_DATA.0, &mut user_mapper) };
 
     crate::disp_info!("Loading user PML4.");
     unsafe {
@@ -119,7 +119,7 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
     crate::disp_debug!("Elf entry is at 0x{:x}", entry_point.as_u64());
 
     crate::disp_info!("Getting to ring 3.");
-    user_mode::enter_user_space(&mut user_mapper, &mut frame_allocator, entry_point);
+    user_mode::enter_user_space(&mut user_mapper, entry_point);
 
     hlt();
 }

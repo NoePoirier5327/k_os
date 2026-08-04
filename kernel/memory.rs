@@ -15,6 +15,7 @@ use x86_64::structures::paging::{
 use x86_64::registers::control::Cr3;
 use x86_64::{VirtAddr, PhysAddr};
 use multiboot2::MemoryMapTag;
+use spin::Mutex;
 use crate::user_mode::{USER_STACK_START, USER_STACK_SIZE};
 
 // TODO Implémenter un frame_allocator et un mapper static et global accessible en public ou via une
@@ -31,6 +32,32 @@ extern "C" {
 pub static USER_PAGES_START : u64 = USER_STACK_START + USER_STACK_SIZE as u64;
 pub static USER_PAGES_END : u64 = KERNEL_PAGES_START - 1;
 pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
+
+/// Frame allocator static global.
+pub static FRAME_ALLOCATOR: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
+
+/// Fonction d'initialisation d'une nouvelle OffsetPageTable.
+///
+/// # Argument
+/// * `memory_map_tag` : cart de la mémoire obtenue via multiboot2, nécessaire pour l'instanciation
+/// de FRAME_ALLOCATOR.
+///
+/// # Return
+/// nouvelle instance de OffsetPageTable de temps de vie static.
+///
+/// # Safety
+/// L'appelant doit garantir que l'adresse physique complète est cartographiée sur la mémoire
+/// virtuelle pour être accessible via l'offset en paramètre.<br>
+/// De plus, cette fonction doit être appelée une seule foit pour éviter les références muables
+/// `&mut` qui sont des comportements indéfinis pour rust.
+pub unsafe fn init(memory_map_tag: &'static MemoryMapTag) -> OffsetPageTable<'static> {
+    *FRAME_ALLOCATOR.lock() = unsafe { Some(BootInfoFrameAllocator::init(memory_map_tag)) };
+
+    unsafe {
+        let level_4_table = active_level_4_table();
+        OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET)
+    }
+}
 
 /// Structure d'un alloueur mémoire simple.
 pub struct BootInfoFrameAllocator {
@@ -85,23 +112,6 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame
-    }
-}
-
-/// Fonction d'initialisation d'une nouvelle OffsetPageTable.
-///
-/// # Return
-/// nouvelle instance de OffsetPageTable de temps de vie static.
-///
-/// # Safety
-/// L'appelant doit garantir que l'adresse physique complète est cartographiée sur la mémoire
-/// virtuelle pour être accessible via l'offset en paramètre.<br>
-/// De plus, cette fonction doit être appelée une seule foit pour éviter les références muables
-/// `&mut` qui sont des comportements indéfinis pour rust.
-pub unsafe fn init() -> OffsetPageTable<'static> {
-    unsafe {
-        let level_4_table = active_level_4_table();
-        OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET)
     }
 }
 
