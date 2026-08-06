@@ -18,19 +18,20 @@ pub static USER_STACK_SIZE : usize = 4096 * 2;
 ///
 /// # Arguments
 /// * `mapper` : mapper de pages mémoire.
-/// * `frame_allocator` : allocateur de pages mémoire.
 /// * `entry_point` : pointer du mode utilisateur.
 pub fn enter_user_space(
     mapper : &mut OffsetPageTable,
-    frame_allocator : &mut BootInfoFrameAllocator,
     entry_point : VirtAddr
 ) {
     // On alloue les pages correspondantes à la pile.
     unsafe {
+        let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
+        let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
+
         let start_adr = VirtAddr::new(USER_STACK_START);
         crate::memory::allocate_user_region(mapper, frame_allocator, start_adr, USER_STACK_SIZE)
             .expect("Failed to allocate user stack.");
-    }
+    } // <-- Mutex libéré ici !!
    
     // On prépare les arguments d'entrées en ring 3
     let stack_top = VirtAddr::new(USER_STACK_START+ USER_STACK_SIZE as u64);
