@@ -16,11 +16,11 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// Adresse virtuelle du programme en mémoire.
 ///
 /// # Safety
-/// Charge un executable elf64 pour x86_64 dans la zone mémoire utilisateur.
+/// - L'executable en paramètre doit être lié pour être dans la zone utilisateur.
+/// - L'architecture cible des executables doit être x86_64.
 pub unsafe fn load_elf(
     elf_bytes: &[u8],
     mapper: &mut impl Mapper<Size4KiB>,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
 
@@ -41,8 +41,16 @@ pub unsafe fn load_elf(
         }
 
         for page in Page::range_inclusive(start_page, end_page) {
-            let frame = frame_allocator.allocate_frame().expect("Not enough memory left.");
-            mapper.map_to(page, frame, flags, frame_allocator).unwrap().flush();
+            // On empêche un deadlock en desactivant les interruptions.
+            let frame = x86_64::instructions::interrupts::without_interrupts(|| {
+                let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
+                let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
+
+                let frame = frame_allocator.allocate_frame().expect("Not enough memory left.");
+                mapper.map_to(page, frame, flags, frame_allocator).unwrap().flush();
+
+                frame
+            });
 
             // Adresse virtuelle accessible par le Kernel pour écrire dans la frame.
             let phys_addr = frame.start_address().as_u64();
