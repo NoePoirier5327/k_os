@@ -72,12 +72,12 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
     };
 
     // Création des alloueurs mémoire.
-    crate::disp_info!("Frame allocator initialization.");
-    //let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(memory_map_tag) };
-    let mut mapper = unsafe { memory::init(memory_map_tag) };
+    crate::disp_info!("Frame allocator and kernel mapper initialization.");
+    unsafe { memory::init(memory_map_tag) };
 
     // Allocation de la zone du tas.
-    allocator::init_heap(&mut mapper)
+    crate::disp_info!("Kernel heap initialization.");
+    allocator::init_heap()
         .expect("Heap initialization failed.");
 
     // On initialise le reste du kernel

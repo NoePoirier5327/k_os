@@ -23,12 +23,9 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 /// Fonction cartographiant la zone mémoire du tas pour pouvoir y accéder plus tard. <br>
 /// Les pages allouées au tas sont de 4Ko de taille.
 ///
-/// # Arguments
-/// * `mapper` : instance de l'outil de cartographie mémoire.
-///
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
-pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>) -> Result<(), MapToError<Size4KiB>> {
+pub fn init_heap() -> Result<(), MapToError<Size4KiB>> {
     crate::disp_info!("Heap initialization.");
 
     let page_range = {
@@ -43,9 +40,10 @@ pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>) -> Result<(), MapToError<Si
     // qu'en mode monothread.
     {
         let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
-        let frame_allocator = frame_allocator_guard
-            .as_mut()
-            .expect("No frame allocator instantiated.");
+        let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
+
+        let mut mapper_guard = crate::memory::KERNEL_MAPPER.lock();
+        let mapper = mapper_guard.as_mut().expect("No kernel mapper instantiated.");
 
         for page in page_range {
             let frame = frame_allocator

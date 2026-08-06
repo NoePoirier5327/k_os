@@ -36,26 +36,25 @@ pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
 /// Frame allocator static global.
 pub static FRAME_ALLOCATOR: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
 
-/// Fonction d'initialisation d'une nouvelle OffsetPageTable.
+/// Kernel memory mapper static global.
+pub static KERNEL_MAPPER: Mutex<Option<OffsetPageTable>> = Mutex::new(None);
+
+/// Fonction d'initialisation d'une nouvelle OffsetPageTable et d'un nouveau FrameAllocator.
 ///
 /// # Argument
-/// * `memory_map_tag` : cart de la mémoire obtenue via multiboot2, nécessaire pour l'instanciation
-/// de FRAME_ALLOCATOR.
-///
-/// # Return
-/// nouvelle instance de OffsetPageTable de temps de vie static.
+/// * `memory_map_tag` : cart de la mémoire obtenue via multiboot2, nécessaire pour l'instanciation de FRAME_ALLOCATOR.
 ///
 /// # Safety
 /// L'appelant doit garantir que l'adresse physique complète est cartographiée sur la mémoire
 /// virtuelle pour être accessible via l'offset en paramètre.<br>
 /// De plus, cette fonction doit être appelée une seule foit pour éviter les références muables
 /// `&mut` qui sont des comportements indéfinis pour rust.
-pub unsafe fn init(memory_map_tag: &'static MemoryMapTag) -> OffsetPageTable<'static> {
+pub unsafe fn init(memory_map_tag: &'static MemoryMapTag) {
     *FRAME_ALLOCATOR.lock() = unsafe { Some(BootInfoFrameAllocator::init(memory_map_tag)) };
 
     unsafe {
         let level_4_table = active_level_4_table();
-        OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET)
+        *KERNEL_MAPPER.lock() = Some(OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET));
     }
 }
 
