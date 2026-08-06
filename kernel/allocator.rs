@@ -25,11 +25,10 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 ///
 /// # Arguments
 /// * `mapper` : instance de l'outil de cartographie mémoire.
-/// * `frame_allocator` : outil d'allocation de pages.
 ///
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
-pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>, frame_allocator: &mut impl FrameAllocator<Size4KiB>) -> Result<(), MapToError<Size4KiB>> {
+pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>) -> Result<(), MapToError<Size4KiB>> {
     crate::disp_info!("Heap initialization.");
 
     let page_range = {
@@ -40,15 +39,26 @@ pub fn init_heap(mapper: &mut impl Mapper<Size4KiB>, frame_allocator: &mut impl 
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
 
-    for page in page_range {
-        let frame = frame_allocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe {
-            mapper.map_to(page, frame, flags, frame_allocator)?.flush()
-        };
-    }
+    // On monopolise FRAME_ALLOCATOR sans protection avant la boucle car init_heap n'est appelé
+    // qu'en mode monothread.
+    {
+        let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
+        let frame_allocator = frame_allocator_guard
+            .as_mut()
+            .expect("No frame allocator instantiated.");
+
+        for page in page_range {
+            let frame = frame_allocator
+                .allocate_frame()
+                .ok_or(MapToError::FrameAllocationFailed)?;
+
+            let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+
+            unsafe {
+                mapper.map_to(page, frame, flags, frame_allocator)?.flush()
+            };
+        }
+    } // Le plus vite on libère un mutex, le mieux on se porte.
 
     // On initialise correctement l'allocateur.
     unsafe {
