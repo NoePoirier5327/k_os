@@ -91,9 +91,9 @@ unsafe fn enter_user_mode(
 }
 
 /// Créer un nouvel espace d'adressage vierge pour un processus utilisateur.
-pub fn create_user_page_table(
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>
-) -> (PhysFrame, OffsetPageTable<'static>) {
+pub fn create_user_page_table() -> (PhysFrame, OffsetPageTable<'static>) {
+    let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
+    let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
     
     // On alloue une frame physique pour la nouvelle PML4
     let pml4_frame = frame_allocator
