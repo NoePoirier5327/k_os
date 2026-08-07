@@ -43,6 +43,14 @@ static mut KERNEL_GS_DATA: KernelGsData = KernelGsData {
     user_rsp: 0,
 };
 
+/// Représente la fonction de gestion d'un appel système.
+type SyscallFn = fn(u64,u64,u64) -> i64;
+
+const SYSCALL_TABLE : [Option<SyscallFn>; 2] = [
+    Some(sys_disp),
+    Some(sys_dispcolor)
+];
+
 /// Initialise les appelles systèmes au niveau de l'assembleur.
 ///
 /// # Arguments
@@ -114,29 +122,8 @@ unsafe extern "sysv64" fn syscall_dispatcher(
     arg2 : u64,
     arg3 : u64
 ) -> i64 {
-    match id {
-        SYS_DISP => {
-            let to_disp = unsafe {
-                super::vga_buffer::extract_str_from_adr(arg1, arg2)
-                    .expect("Failed to extract the desired string from the ram")
-            };
-
-            crate::print!("{}", to_disp);
-            ESUCCESS
-        }
-
-        SYS_DISPCOLOR => {
-            if arg1 > 15 || arg2 > 15 {
-                return ARGERROR;
-            }
-
-            super::vga_buffer::set_writer_color(
-                super::vga_buffer::Color::from_code_to_color(arg1 as u8),
-                super::vga_buffer::Color::from_code_to_color(arg2 as u8)
-            );
-
-            ESUCCESS
-        }
+    match SYSCALL_TABLE.get(id as usize) {
+        Some(Some(handler)) => handler(arg1, arg2, arg3),
 
         _ => {
             crate::disp_warning!("Le syscall {} n'existe pas.", id);
@@ -197,4 +184,39 @@ unsafe extern "sysv64" fn syscall_entry() {
         "swapgs",
         "sysretq",
     );
+}
+
+/// Implémentation de l'appel système d'affichage sur le buffer vga.
+///
+/// # Arguments
+/// - `msg` : pointeur vers le premier caractère du message à afficher.
+/// - `msg_len` : taille du message à afficher.
+/// - `dummy` : argument inutile.
+fn sys_disp(msg: u64, msg_len: u64, dummy: u64) -> i64 {
+    let to_disp = unsafe {
+        super::vga_buffer::extract_str_from_adr(msg, msg_len)
+            .expect("Failed to extract the desired string from the ram")
+    };
+
+    crate::print!("{}", to_disp);
+    ESUCCESS
+}
+
+/// Implémentation de l'appel système de changement de couleur sur le buffer vga.
+///
+/// #Arguments
+/// - `ft_color` : couleur du texte.
+/// - `bg_color` : couleur de fond du texte.
+/// - `dummy`    : argument inutile.
+fn sys_dispcolor(ft_color: u64, bg_color: u64, dummy: u64) -> i64 {
+    if ft_color > 15 || bg_color > 15 {
+        return ARGERROR;
+    }
+
+    super::vga_buffer::set_writer_color(
+        super::vga_buffer::Color::from_code_to_color(ft_color as u8),
+        super::vga_buffer::Color::from_code_to_color(bg_color as u8)
+    );
+
+    ESUCCESS
 }
