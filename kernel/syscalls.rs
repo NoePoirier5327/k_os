@@ -24,6 +24,9 @@ const EFAILED : i64 = -1;
 /// Argument non conforme
 const ARGERROR : i64 = -2;
 
+/// Taille max des chaînes de caractères à afficher.
+const MAX_SYSCALL_STR_SIZE: u64 = 2000;
+
 /// Structure stockée dans la base Kernel GS.
 /// Alignée sur 16 octets pour garantir des offsets précis.
 #[repr(C, align(16))]
@@ -193,9 +196,17 @@ unsafe extern "sysv64" fn syscall_entry() {
 /// - `msg_len` : taille du message à afficher.
 /// - `dummy` : argument inutile.
 fn sys_disp(msg: u64, msg_len: u64, _dummy: u64) -> i64 {
-    let to_disp = unsafe {
+    // Empêche le déni de service lors de l'affichage.
+    if msg_len > MAX_SYSCALL_STR_SIZE {
+        return ARGERROR
+    }
+
+    // extract_str_from_adr vérifie que [msg; msg+msg_len] est dans les pages utilisateur.
+    let to_disp = match unsafe {
         super::vga_buffer::extract_str_from_adr(msg, msg_len)
-            .expect("Failed to extract the desired string from the ram")
+    } {
+        Ok(s) => s,
+        Err(_) => return ARGERROR
     };
 
     crate::print!("{}", to_disp);
