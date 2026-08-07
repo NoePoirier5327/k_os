@@ -26,8 +26,6 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
 pub fn init_heap() -> Result<(), MapToError<Size4KiB>> {
-    crate::disp_info!("Heap initialization.");
-
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
         let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;

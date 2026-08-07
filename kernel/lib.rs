@@ -78,7 +78,7 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
     // Allocation de la zone du tas.
     crate::disp_info!("Kernel heap initialization.");
     allocator::init_heap()
-        .expect("Heap initialization failed.");
+        .expect("Kernel heap initialization failed.");
 
     // On initialise le reste du kernel
     init();
