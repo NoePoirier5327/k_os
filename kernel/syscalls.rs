@@ -192,7 +192,7 @@ unsafe extern "sysv64" fn syscall_entry() {
 /// - `msg` : pointeur vers le premier caractère du message à afficher.
 /// - `msg_len` : taille du message à afficher.
 /// - `dummy` : argument inutile.
-fn sys_disp(msg: u64, msg_len: u64, dummy: u64) -> i64 {
+fn sys_disp(msg: u64, msg_len: u64, _dummy: u64) -> i64 {
     let to_disp = unsafe {
         super::vga_buffer::extract_str_from_adr(msg, msg_len)
             .expect("Failed to extract the desired string from the ram")
@@ -208,7 +208,7 @@ fn sys_disp(msg: u64, msg_len: u64, dummy: u64) -> i64 {
 /// - `ft_color` : couleur du texte.
 /// - `bg_color` : couleur de fond du texte.
 /// - `dummy`    : argument inutile.
-fn sys_dispcolor(ft_color: u64, bg_color: u64, dummy: u64) -> i64 {
+fn sys_dispcolor(ft_color: u64, bg_color: u64, _dummy: u64) -> i64 {
     if ft_color > 15 || bg_color > 15 {
         return ARGERROR;
     }
