@@ -3,14 +3,6 @@ use x86_64::registers::model_specific::{Star, LStar, SFMask, Efer, EferFlags, Ke
 use x86_64::structures::gdt::SegmentSelector;
 use x86_64::VirtAddr;
 
-
-// Codes de gestion des syscalls.
-/// Syscall d'écriture dans la console.
-const SYS_DISP : u64 = 0;
-
-/// Syscall de changement de couleur du writer système.
-const SYS_DISPCOLOR : u64 = 1;
-
 // Codes de retour d'un syscall calqués sur les conventions linux.
 /// Syscall demandé non implémenté.
 const ENOSYS : i64 = 38;
