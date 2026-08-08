@@ -129,7 +129,7 @@ unsafe extern "sysv64" fn syscall_dispatcher(
         Some(Some(handler)) => handler(arg1, arg2, arg3),
 
         _ => {
-            crate::disp_warning!("Le syscall {} n'existe pas.", id);
+            crate::disp_warning!("Syscall `0x{:x}` doesn't exist.", id);
             ENOSYS
         }
     }

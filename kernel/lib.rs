@@ -107,7 +107,7 @@ pub extern "C" fn kernel_start(multiboot_info_ptr : u64) -> ! {
     let (user_pml4_frame, mut user_mapper) = user_mode::create_user_page_table();
 
     crate::disp_debug!("Reading elf64 executable file.");
-    static ELF_DATA: &elf::AlignedElfBinary<[u8]> = &elf::AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
+    static ELF_DATA: &elf::AlignedElfBinary<[u8]> = &elf::AlignedElfBinary(*include_bytes!("../user/sys_fail/sys_fail"));
     let entry_point = unsafe { elf::load_elf(&ELF_DATA.0, &mut user_mapper) };
 
     crate::disp_info!("Loading user PML4.");
