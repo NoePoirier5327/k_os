@@ -58,6 +58,7 @@ macro_rules! disp_exception {
 }
 
 /// Afficheur de message de débug vers l'utilisateur
+// TODO Faire en sorte que le message de disp_debug ne s'affiche qu'en mode debug.
 #[macro_export]
 macro_rules! disp_debug {
     ($($args:tt)*) => {
