@@ -7,7 +7,6 @@ use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, Pag
 use pic8259::ChainedPics;
 use spin::Lazy;
 use crate::{println, print};
-use crate::hlt;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -40,7 +39,7 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
 
     // On référence la fonction de gestion de double_fault et sa fonction de swap de pile.
     unsafe {
-        idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
+        idt.double_fault.set_handler_fn(double_fault_handler).set_stack_index(super::gdt::DOUBLE_FAULT_IST_INDEX);
     }
 
     // On référence la fonction de gestion du timer.
@@ -119,7 +118,7 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
     //print!(".");
     // On cadence le yield de l'ordonnanceur sur le timer processeur.
     x86_64::instructions::interrupts::disable();
-    crate::scheduler::schedule();
+    //crate::scheduler::schedule();
 
     unsafe {
         PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
@@ -175,7 +174,7 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     println!("Accessed Address: {:?}", Cr2::read());
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
-    hlt();
+    crate::hlt_loop();
 }
 
 /// Fonction de gestion d'interruption inconnue.

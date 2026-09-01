@@ -15,8 +15,7 @@ use x86_64::structures::paging::{
 use x86_64::registers::control::Cr3;
 use x86_64::{VirtAddr, PhysAddr};
 use multiboot2::MemoryMapTag;
-use spin::Mutex;
-use crate::user_mode::{USER_STACK_START, USER_STACK_SIZE};
+use super::user_mode::{USER_STACK_START, USER_STACK_SIZE};
 
 // TODO Implémenter un frame_allocator et un mapper static et global accessible en public ou via une
 // interface régissant sa sécuritée.
@@ -33,29 +32,19 @@ pub static USER_PAGES_START : u64 = USER_STACK_START + USER_STACK_SIZE as u64;
 pub static USER_PAGES_END : u64 = KERNEL_PAGES_START - 1;
 pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
 
-/// Frame allocator static global.
-pub static FRAME_ALLOCATOR: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
 
-/// Kernel memory mapper static global.
-pub static KERNEL_MAPPER: Mutex<Option<OffsetPageTable>> = Mutex::new(None);
-
-/// Fonction d'initialisation d'une nouvelle OffsetPageTable et d'un nouveau FrameAllocator.
+/// Initialise un mapper positionné sur l'offset de la mémoire physique.
 ///
 /// # Argument
-/// * `memory_map_tag` : cart de la mémoire obtenue via multiboot2, nécessaire pour l'instanciation de FRAME_ALLOCATOR.
-///
-/// # Safety
-/// L'appelant doit garantir que l'adresse physique complète est cartographiée sur la mémoire
-/// virtuelle pour être accessible via l'offset en paramètre.<br>
-/// De plus, cette fonction doit être appelée une seule foit pour éviter les références muables
-/// `&mut` qui sont des comportements indéfinis pour rust.
-pub unsafe fn init(memory_map_tag: &'static MemoryMapTag) {
-    *FRAME_ALLOCATOR.lock() = unsafe { Some(BootInfoFrameAllocator::init(memory_map_tag)) };
-
-    unsafe {
-        let level_4_table = active_level_4_table();
-        *KERNEL_MAPPER.lock() = Some(OffsetPageTable::new(level_4_table, crate::VIRTUAL_MEMORY_OFFSET));
-    }
+/// * `physical_memory_offset`: offset sur lequel configuré le nouveau mapper.
+/// 
+/// # Return
+/// Nouveau mapper configuré sur l'offset en paramètre.
+pub unsafe fn init_mapper(
+    physical_memory_offset: VirtAddr,
+) -> OffsetPageTable<'static> {
+    let level_4_table = active_level_4_table(physical_memory_offset);
+    OffsetPageTable::new(level_4_table, physical_memory_offset)
 }
 
 /// Structure d'un alloueur mémoire simple.
@@ -228,17 +217,20 @@ pub fn is_user_address_range(ptr: *const u8, len: usize) -> bool {
 
 /// Fonction renvoyant un accès mutable sur la table mémoire active de niveau 4.
 ///
+/// # Argument
+/// * `physical_memory_offset` : Offset de la mémoire physique.
+///
 /// # Safety
 /// L'appelant doit s'assurer que l'adresse physique complète est configuré
 /// sur l'adresse virtuelle de la page 4 en paramètre récursive.<br>
 /// De plus, cette fonction doit seulement être appelée pour éviter les 
 /// références mutables `&mut` (qui est un comportement indéfini sur rust).
-unsafe fn active_level_4_table() -> &'static mut PageTable {
+unsafe fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut PageTable {
     let (level_4_table_frame, _) = Cr3::read();
 
     let phys = level_4_table_frame.start_address();
     // L'adresse virtuelle est l'adresse physique + l'offset
-    let virt = crate::VIRTUAL_MEMORY_OFFSET + phys.as_u64();
+    let virt = physical_memory_offset + phys.as_u64();
     let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
     &mut *page_table_ptr
 }
@@ -269,6 +261,10 @@ pub unsafe fn translate_addr(addr: VirtAddr) -> Option<PhysAddr> {
 /// # Return
 /// Renvoie ou l'adresse physique cartographiée en mémoire ou None si non cartographiée.
 fn translate_addr_inner(addr: VirtAddr) -> Option<PhysAddr> {
+    let virt_mem_offset = {
+        VirtAddr::new(crate::kernel::Kernel::on_instance().physical_memory_offset())
+    };
+
     // On lit la table active de niveau 4 par le registre cr3
     let (level_4_table_frame, _) = Cr3::read();
 
@@ -278,7 +274,7 @@ fn translate_addr_inner(addr: VirtAddr) -> Option<PhysAddr> {
     // On parcours les pages mémoire de plusieurs niveaux
     for &index in &table_indexes {
         // On convertit la portion de page courante en référence vers la table
-        let virt = crate::VIRTUAL_MEMORY_OFFSET + frame.start_address().as_u64();
+        let virt = virt_mem_offset + frame.start_address().as_u64();
         let table_ptr: *const PageTable = virt.as_ptr();
         let table = unsafe {&*table_ptr};
 

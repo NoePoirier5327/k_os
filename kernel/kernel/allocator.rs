@@ -23,9 +23,16 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 /// Fonction cartographiant la zone mémoire du tas pour pouvoir y accéder plus tard. <br>
 /// Les pages allouées au tas sont de 4Ko de taille.
 ///
+/// # Arguments
+/// * `mapper`: mapper mémoire kernel pour l'allocation du tas.
+/// * `frame_allocator`: alloueur de page kernel pour l'allocation du tas.
+///
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
-pub fn init_heap() -> Result<(), MapToError<Size4KiB>> {
+pub fn init_heap(
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut impl FrameAllocator<Size4KiB>
+) ->Result<(), MapToError<Size4KiB>> {
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
         let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;
@@ -34,27 +41,17 @@ pub fn init_heap() -> Result<(), MapToError<Size4KiB>> {
         Page::range_inclusive(heap_start_page, heap_end_page)
     };
 
-    // On monopolise FRAME_ALLOCATOR sans protection avant la boucle car init_heap n'est appelé
-    // qu'en mode monothread.
-    {
-        let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
-        let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
+    for page in page_range {
+        let frame = frame_allocator
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
 
-        let mut mapper_guard = crate::memory::KERNEL_MAPPER.lock();
-        let mapper = mapper_guard.as_mut().expect("No kernel mapper instantiated.");
+        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
-        for page in page_range {
-            let frame = frame_allocator
-                .allocate_frame()
-                .ok_or(MapToError::FrameAllocationFailed)?;
-
-            let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-
-            unsafe {
-                mapper.map_to(page, frame, flags, frame_allocator)?.flush()
-            };
-        }
-    } // Le plus vite on libère un mutex, le mieux on se porte.
+        unsafe {
+            mapper.map_to(page, frame, flags, frame_allocator)?.flush()
+        };
+    }
 
     // On initialise correctement l'allocateur.
     unsafe {

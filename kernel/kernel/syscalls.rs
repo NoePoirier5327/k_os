@@ -194,6 +194,7 @@ fn sys_disp(msg: u64, msg_len: u64, _dummy: u64) -> i64 {
     }
 
     // extract_str_from_adr vérifie que [msg; msg+msg_len] est dans les pages utilisateur.
+    /*
     let to_disp = match unsafe {
         super::vga_buffer::extract_str_from_adr(msg, msg_len)
     } {
@@ -202,6 +203,7 @@ fn sys_disp(msg: u64, msg_len: u64, _dummy: u64) -> i64 {
     };
 
     crate::print!("{}", to_disp);
+    */
     ESUCCESS
 }
 
@@ -216,9 +218,9 @@ fn sys_dispcolor(ft_color: u64, bg_color: u64, _dummy: u64) -> i64 {
         return ARGERROR;
     }
 
-    super::vga_buffer::set_writer_color(
-        super::vga_buffer::Color::from_code_to_color(ft_color as u8),
-        super::vga_buffer::Color::from_code_to_color(bg_color as u8)
+    crate::vga_buffer::set_writer_color(
+        crate::vga_buffer::Color::from_code_to_color(ft_color as u8),
+        crate::vga_buffer::Color::from_code_to_color(bg_color as u8)
     );
 
     ESUCCESS

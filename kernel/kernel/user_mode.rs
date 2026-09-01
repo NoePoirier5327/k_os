@@ -2,9 +2,9 @@
 
 use core::arch::asm;
 use x86_64::VirtAddr;
-use x86_64::structures::paging::{OffsetPageTable, PageTable, PhysFrame, Size4KiB, FrameAllocator};
+use x86_64::structures::paging::{OffsetPageTable, PageTable, PhysFrame, FrameAllocator};
 use x86_64::registers::control::Cr3;
-use crate::memory::BootInfoFrameAllocator;
+use crate::kernel::Kernel;
 
 
 /// Adresse de début de la pile utilisateur.
@@ -17,24 +17,26 @@ pub static USER_STACK_SIZE : usize = 4096 * 2;
 /// Permet de démarrer le mode utilisateur dans le ring 3 du CPU.
 ///
 /// # Arguments
-/// * `mapper` : mapper de pages mémoire.
 /// * `entry_point` : pointer du mode utilisateur.
 pub fn enter_user_space(
-    mapper : &mut OffsetPageTable,
     entry_point : VirtAddr
 ) {
-    // On alloue les pages correspondantes à la pile.
-    unsafe {
-        let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
-        let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
-
+    // On alloue la pile utilisateur.
+    let mut mapper = Kernel::on_instance().mapper();
+    Kernel::with_frame_allocator(|frame_allocator| {
         let start_adr = VirtAddr::new(USER_STACK_START);
-        crate::memory::allocate_user_region(mapper, frame_allocator, start_adr, USER_STACK_SIZE)
-            .expect("Failed to allocate user stack.");
-    } // <-- Mutex libéré ici !!
+        unsafe {
+            let _ = super::memory::allocate_user_region(
+                &mut mapper,
+                frame_allocator,
+                start_adr,
+                USER_STACK_SIZE
+            );
+        }
+    });
    
     // On prépare les arguments d'entrées en ring 3
-    let stack_top = VirtAddr::new(USER_STACK_START+ USER_STACK_SIZE as u64);
+    let stack_top = VirtAddr::new(USER_STACK_START + USER_STACK_SIZE as u64);
 
     unsafe {
         enter_user_mode(
@@ -58,7 +60,7 @@ unsafe fn enter_user_mode(
     // On l'active pour que les interruptions matérielles restent actives en Ring 3.
     let rflags: u64 = 0x202; 
 
-    let selectors = crate::gdt::get_selectors();
+    let selectors = super::gdt::get_selectors();
     let user_code_selector: u64 = selectors.get_user_code_selector().0 as u64;
     let user_data_selector: u64 = selectors.get_user_data_selector().0 as u64;
 
@@ -93,16 +95,17 @@ unsafe fn enter_user_mode(
 
 /// Créer un nouvel espace d'adressage vierge pour un processus utilisateur.
 pub fn create_user_page_table() -> (PhysFrame, OffsetPageTable<'static>) {
-    let mut frame_allocator_guard = crate::memory::FRAME_ALLOCATOR.lock();
-    let frame_allocator = frame_allocator_guard.as_mut().expect("No frame allocator instantiated.");
-    
     // On alloue une frame physique pour la nouvelle PML4
-    let pml4_frame = frame_allocator
-        .allocate_frame()
-        .expect("No more memory left to allocate the user PML4.");
+    let pml4_frame = Kernel::with_frame_allocator(|frame_allocator| {
+        frame_allocator
+            .allocate_frame()
+            .expect("No more memory left to allocate new user pml4.")
+    });
+
+    let virt_mem_offset = VirtAddr::new(Kernel::on_instance().physical_memory_offset());
 
     // On calcule l'adresse virtuelle pour y accéder via le kernel
-    let pml4_vaddr = crate::VIRTUAL_MEMORY_OFFSET + pml4_frame.start_address().as_u64();
+    let pml4_vaddr = virt_mem_offset + pml4_frame.start_address().as_u64();
     let pml4_ptr = pml4_vaddr.as_mut_ptr::<PageTable>();
 
     // On rempli la page de zéros afin d'effacer les données aléatoires en RAM.
@@ -113,7 +116,7 @@ pub fn create_user_page_table() -> (PhysFrame, OffsetPageTable<'static>) {
 
     // On récupere l'ancienne table (actuelle) pour copier le noyau
     let (current_pml4_frame, _) = Cr3::read();
-    let current_pml4_vaddr = crate::VIRTUAL_MEMORY_OFFSET + current_pml4_frame.start_address().as_u64();
+    let current_pml4_vaddr = virt_mem_offset + current_pml4_frame.start_address().as_u64();
     let current_pml4 = unsafe { &*current_pml4_vaddr.as_ptr::<PageTable>() };
 
     // On copie les entrées Kernel (256 à 511)
@@ -123,7 +126,7 @@ pub fn create_user_page_table() -> (PhysFrame, OffsetPageTable<'static>) {
     }
 
     // On créer le Mapper associé à ce nouveau PML4
-    let new_mapper = unsafe { OffsetPageTable::new(new_pml4, crate::VIRTUAL_MEMORY_OFFSET) };
+    let new_mapper = unsafe { OffsetPageTable::new(new_pml4, virt_mem_offset) };
 
     // On retourne le Frame physique (pour Cr3) et le Mapper (pour charger l'ELF)
     (pml4_frame, new_mapper)

@@ -5,13 +5,30 @@
 // TODO Gérer l'affichage des accents de UTF-8 vers CP437
 
 use core::{fmt, slice, str};
-use spin::{Lazy, Mutex};
+use spin::{Mutex, Once};
 use volatile::Volatile;
 
 
-/// Adresse du buffer vga.
-const VGA_BUFFER_ADRESS: u64 = 0xb8000 + crate::PHYSICAL_MEMORY_OFFSET;
+/// Interface d'ecriture globale dans le buffer vga. <br>
+/// Elle est chargée en tant que static à partir du moment où le processeur l'appelle
+/// et elle utilise une sémaphore pour bloquer son accès à chaques utilisations.
+static WRITER: Once<Mutex<Writer>> = Once::new(); 
 
+/// Créer un nouveau wirter vga global.
+///
+/// # Argument
+/// * `physical_memory_offset`: offset de la mémoire physique pour aller chercher l'adresse vga.
+pub fn init(physical_memory_offset: u64) {
+    WRITER.call_once(|| {
+        Mutex::new(Writer { 
+            column_position: 0,
+            color_code: ColorCode::new(Color::LightGray, Color::Black),
+            buffer: unsafe {
+                &mut *((0xB8000 + physical_memory_offset) as *mut Buffer)
+            }
+        })
+    });
+}
 
 /// Type énuméré représentant les couleurs affichables à l'écran par le buffer vga.
 #[allow(dead_code)]
@@ -217,17 +234,6 @@ impl fmt::Write for Writer {
     }
 }
 
-/// Interface d'ecriture globale dans le buffer vga. <br>
-/// Elle est chargée en tant que static à partir du moment où le processeur l'appelle
-/// et elle utilise une sémaphore pour bloquer son accès à chaques utilisations.
-static WRITER: Lazy<Mutex<Writer>> = Lazy::new(|| {
-    Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::LightGray, Color::Black),
-        buffer: unsafe { &mut *(VGA_BUFFER_ADRESS as *mut Buffer) },
-    })
-});
-
 /// Support de la macro print! de la librairie standard de rust.
 #[macro_export]
 macro_rules! print {
@@ -255,7 +261,12 @@ pub fn _print(args: fmt::Arguments) {
     // On interrompt les interruptions pour éviter de corrompre la pile du thread courant et faire
     // en sorte que le verrou sur le writer soit libéré avant de passer à la suite.
     interrupts::without_interrupts(|| {
-        WRITER.lock().write_fmt(args).unwrap();
+        WRITER
+            .get()
+            .expect("The writer is not initialized.")
+            .lock()
+            .write_fmt(args)
+            .unwrap();
     });
 }
 
@@ -268,7 +279,11 @@ pub fn set_writer_color(ft_color : Color, bg_color : Color) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        WRITER.lock().set_color(ft_color, bg_color);
+        WRITER
+            .get()
+            .expect("The writer is not initialized.")
+            .lock()
+            .set_color(ft_color, bg_color);
     });
 }
 
@@ -277,7 +292,11 @@ pub fn set_default_writer_color() {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        WRITER.lock().set_color(Color::LightGray, Color::Black);
+        WRITER
+            .get()
+            .expect("The writer is not initialized.")
+            .lock()
+            .set_color(Color::LightGray, Color::Black);
     })
 }
 
@@ -286,11 +305,16 @@ pub fn clear_screen() {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        WRITER.lock().clear_screen();
+        WRITER
+            .get()
+            .expect("The writer is not initialized.")
+            .lock()
+            .clear_screen();
     });
 }
 
 
+/*
 /// Reconstruit une chaîne de caractère stockée dans la ram à une adresse donnée.
 ///
 /// # Arguments
@@ -316,3 +340,4 @@ pub unsafe fn extract_str_from_adr(first_car_adr : u64, str_len : u64) -> Result
         Err(_) => Err("Invalid UTF-8 sring.")
     }
 }
+*/
