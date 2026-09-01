@@ -290,3 +290,28 @@ fn translate_addr_inner(addr: VirtAddr) -> Option<PhysAddr> {
     // On calcul l'adresse de la page voulue grâce à l'offset
     Some(frame.start_address() + u64::from(addr.page_offset()))
 }
+
+/// Reconstruit une chaîne de caractère stockée dans la ram à une adresse donnée.
+///
+/// # Arguments
+/// * `first_car_adr` : Adresse du premier caractère de la chaîne.
+/// * `str_len` : taille de la chaîne à extraire.
+///
+/// # Safety
+/// L'appelant doit être sur que l'adresse en paramètre pointe bien vers la chaîne voulue en
+/// mémoire.
+pub unsafe fn extract_str_from_adr(first_car_adr : u64, str_len : u64) -> Result<&'static str, &'static str> {
+    let ptr = first_car_adr as *const u8;
+    let len = str_len as usize;
+
+    if !is_user_address_range(ptr, len) {
+        return Err("Someone tries to access non user memory.");
+    }
+
+    let byte_slice = core::slice::from_raw_parts(ptr, len);
+
+    match str::from_utf8(byte_slice) {
+        Ok(valid_str) => Ok(valid_str),
+        Err(_) => Err("Invalid UTF-8 sring.")
+    }
+}

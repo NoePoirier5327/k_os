@@ -194,16 +194,14 @@ fn sys_disp(msg: u64, msg_len: u64, _dummy: u64) -> i64 {
     }
 
     // extract_str_from_adr vérifie que [msg; msg+msg_len] est dans les pages utilisateur.
-    /*
     let to_disp = match unsafe {
-        super::vga_buffer::extract_str_from_adr(msg, msg_len)
+        super::memory::extract_str_from_adr(msg, msg_len)
     } {
         Ok(s) => s,
         Err(_) => return ARGERROR
     };
 
     crate::print!("{}", to_disp);
-    */
     ESUCCESS
 }
 

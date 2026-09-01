@@ -4,7 +4,7 @@
 
 // TODO Gérer l'affichage des accents de UTF-8 vers CP437
 
-use core::{fmt, slice, str};
+use core::{fmt, str};
 use spin::{Mutex, Once};
 use volatile::Volatile;
 
@@ -312,32 +312,3 @@ pub fn clear_screen() {
             .clear_screen();
     });
 }
-
-
-/*
-/// Reconstruit une chaîne de caractère stockée dans la ram à une adresse donnée.
-///
-/// # Arguments
-/// * `first_car_adr` : Adresse du premier caractère de la chaîne.
-/// * `str_len` : taille de la chaîne à extraire.
-///
-/// # Safety
-/// L'appelant doit être sur que l'adresse en paramètre pointe bien vers la chaîne voulue en
-/// mémoire.
-// TODO à placer dans le module de gestion des strings.
-pub unsafe fn extract_str_from_adr(first_car_adr : u64, str_len : u64) -> Result<&'static str, &'static str> {
-    let ptr = first_car_adr as *const u8;
-    let len = str_len as usize;
-
-    if !crate::memory::is_user_address_range(ptr, len) {
-        return Err("Someone tries to access non user memory.");
-    }
-
-    let byte_slice = slice::from_raw_parts(ptr, len);
-
-    match str::from_utf8(byte_slice) {
-        Ok(valid_str) => Ok(valid_str),
-        Err(_) => Err("Invalid UTF-8 sring.")
-    }
-}
-*/
