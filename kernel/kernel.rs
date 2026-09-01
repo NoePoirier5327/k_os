@@ -6,6 +6,7 @@ mod interrupts;
 mod allocator;
 mod syscalls;
 mod user_mode;
+mod elf;
 
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
