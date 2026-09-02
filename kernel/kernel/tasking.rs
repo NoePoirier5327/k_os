@@ -111,6 +111,8 @@ impl Tasking {
     /// Renvoie une erreur si le processus est introuvable.
     pub fn destroy_process(&mut self, pid: PId) -> TaskingResult<()> {
         // On détruit les threads auquel il est associé.
+        self.process_manager.get_mut(pid)?.kill(); // On marque le processus courant comme mort pour
+                                                   // eviter qu'il tourne pendant qu'on le détruit.
         let tids = self.process_manager.get(pid)?.get_threads().clone();
         for tid in tids {
             self.thread_manager.destroy(tid).ok(); // On ignore l'erreur de non existence lors de la

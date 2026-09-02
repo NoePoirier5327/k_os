@@ -102,6 +102,11 @@ impl Process {
     pub fn get_threads(&self) -> &BTreeSet<TId> {
         &self.threads
     }
+
+    /// Marque le processus courant comme mort.
+    pub fn kill(&mut self) {
+        self.state = ProcessState::Dead;
+    }
 }
 
 /// Représente le type de processus avec lequel on travaille.
