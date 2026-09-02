@@ -7,6 +7,7 @@ mod allocator;
 mod syscalls;
 mod user_mode;
 mod elf;
+mod scheduler;
 
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
@@ -17,15 +18,19 @@ use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 use memory::BootInfoFrameAllocator;
-
-use crate::kernel::memory::init_mapper;
+use scheduler::Scheduler;
+use memory::init_mapper;
 
 /// Instance global protégée par un OnceLock.
 static KERNEL_INSTANCE: Once<Kernel> = Once::new();
 
 /// Frame allocator du kernel, lui aussi un singleton.
-/// Accessible uniquement par une méthode sur l'instance du kernel.
+/// Accessible via with_frame_allocator
 static FRAME_ALLOCATOR: Once<Mutex<BootInfoFrameAllocator>> = Once::new();
+
+/// Ordonnanceur de tâche, lui aussi un singleton.
+/// Accessible via with_scheduler
+static SCHEDULER: Once<Mutex<Scheduler>> = Once::new();
 
 pub struct Kernel {
     physical_memory_offset: u64,
@@ -106,6 +111,13 @@ impl Kernel {
             Cr0::write(cr0);
         }
 
+        crate::disp_info!("Initialization of the scheduler");
+        SCHEDULER.call_once(|| {
+            Mutex::new(
+                Scheduler::new()
+            )
+        });
+
         crate::disp_info!("Enabling cpu's interruptions.");
         x86_64::instructions::interrupts::enable();
 
@@ -144,12 +156,6 @@ impl Kernel {
         unsafe { memory::init_mapper(VirtAddr::new(self.physical_memory_offset)) }
     }
 
-    /// Accesseur du frame allocator kernel
-    #[deprecated(note = "Use with_frame_allocator() instead")]
-    pub fn frame_allocator() -> &'static Mutex<BootInfoFrameAllocator> {
-        FRAME_ALLOCATOR.get().expect("The kernel frame allocator is not initialized.")
-    }
-
     /// Accesseur de l'instance du frame allocator kernel.
     /// Gère le temps de validité du mutex interne.
     pub fn with_frame_allocator<R>(f: impl FnOnce(&mut BootInfoFrameAllocator) -> R) -> R {
@@ -158,7 +164,14 @@ impl Kernel {
             .expect("The kernel frame allocator is not initialized.")
             .lock();
 
-        f(&mut *guard)
+        f(&mut guard)
     }
 
+    /// Accesseur de l'instance de l'ordonnanceur de tâche.
+    /// Gère le temp de validité du mutex interne et désactive les interruptions cpu le temps de la
+    /// manoeuvre.
+    pub fn with_scheduler<R>(f: impl FnOnce(&mut Scheduler) -> R) -> R {
+        let scheduler = SCHEDULER.get().expect("The scheduler is not initialized.");
+        x86_64::instructions::interrupts::without_interrupts(|| f(&mut scheduler.lock()))
+    }
 }

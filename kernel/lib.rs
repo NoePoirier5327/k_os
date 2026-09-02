@@ -14,6 +14,7 @@ mod message;
 mod vga_buffer;
 
 use core::panic::PanicInfo;
+use kernel::Kernel;
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
@@ -22,7 +23,7 @@ use core::panic::PanicInfo;
 /// * `multiboot_info_ptr` : pointeur multiboot2 permettant la cartographie de la mémoire pour être utilisé par le noyau ensuite.
 #[unsafe(no_mangle)]
 pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {   
-    kernel::Kernel::init(multiboot2_info_ptr);
+    Kernel::init(multiboot2_info_ptr);
 
     hlt_loop();
 }

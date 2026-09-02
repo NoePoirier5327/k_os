@@ -5,18 +5,13 @@ pub mod thread;
 
 use thread::{Thread, ThreadId, ThreadState, swap_context};
 use alloc::collections::VecDeque;
-use spin::Mutex;
-
-
-/// Interface par laquelle accéder à l'ordonnanceur.
-pub static SCHEDULER : Mutex<Scheduler> = Mutex::new(Scheduler::new());
+use crate::kernel::Kernel;
 
 
 /// Type représentant un ordonnanceur de thread. <br>
-/// Ne doit être accéder qu'avec l'interface statique `SCHEDULER`.
+/// Ne doit être accéder que depuis le kernel.
 pub struct Scheduler {
     threads : VecDeque<Thread>,
-    //current_index : Option<usize>,
     next_thread : ThreadId, // Identifiant du prochain thread à créer
     garbage : Option<Thread>
 }
@@ -26,7 +21,6 @@ impl Scheduler {
     pub const fn new() -> Self {
         Self {
             threads : VecDeque::new(),
-            //current_index : None,
             next_thread : 0,
             garbage : None
         }
@@ -100,12 +94,9 @@ impl Scheduler {
 
 /// Fonction de changement de contexte de l'ordonnanceur mémoire.
 pub fn schedule() {
-    let context_to_swap : Option<(*mut u64, u64)>;
-
-    {
-        let mut scheduler = SCHEDULER.lock();
-        context_to_swap = scheduler.get_context();
-    } // Le mutex est libéré ici
+    let context_to_swap = Kernel::with_scheduler(|scheduler| {
+        scheduler.get_context()
+    });
 
     // On effectue le changement de contexte ici
     if let Some((old_rsp, new_rsp)) = context_to_swap {

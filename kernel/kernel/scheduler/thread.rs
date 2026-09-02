@@ -3,8 +3,8 @@
 // TODO Implémenter un temps d'execution max pour éviter les blocages (ex: boucles infinies).
 
 //use crate::println;
-use crate::interrupts::{PICS, InterruptIndex};
-use super::SCHEDULER;
+use crate::kernel::interrupts::{PICS, InterruptIndex};
+use crate::kernel::Kernel;
 use alloc::boxed::Box;
 use alloc::vec;
 use core::arch::naked_asm;
@@ -120,20 +120,19 @@ impl Thread {
 /// toujours vivant après que l'ordonnanceur l'ai forcé à être déalloué.
 fn thread_exit() -> ! {
     //println!("INFO : Current thread finished its job.");
-
-    {
-        // On tue le thread appelant.
-        let mut scheduler = SCHEDULER.lock();
+   
+    // On tue le thread courant.
+    Kernel::with_scheduler(|scheduler| {
         if let Some(current_thread_mutex) = scheduler.get_current_thread_mut() {
             current_thread_mutex.kill();
         }
-    } // Le mutex est libéré ici
+    });
 
     // Puis, on force le passage au thread suivant.
     super::schedule();
 
     // Sécurité au cas ou il y a un problème.
-    panic!("ERROR : From this point, I should be dead, something wrong might have happened.");
+    panic!("From this point, I should be dead, something wrong might have happened.");
 }
 
 /// Fonction de trampoline permettant de réactiver les interruptions processeur et envoyer le signal
