@@ -8,6 +8,7 @@ mod syscalls;
 mod user_mode;
 mod elf;
 mod scheduler;
+mod tasking;
 
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
