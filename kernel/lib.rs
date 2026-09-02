@@ -10,6 +10,7 @@
 extern crate alloc;
 
 mod kernel;
+mod tasker;
 mod message;
 mod vga_buffer;
 

@@ -5,7 +5,7 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::string::String;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::thread_manager::thread::TId;
-use crate::kernel::tasking::{TaskingError, TaskingResult};
+use crate::tasker::{TaskerError, TaskerResult};
 
 /// Identifiant d'un processus.
 /// Sert aux threads à se référer à leurs parents et au ProcessManager à se référer à ses
@@ -63,9 +63,9 @@ impl Process {
 
     /// Associe un nouveau thread au processus courant.
     /// Ne fait rien si le processus courant est déjà associé au thread qu'on veut lui ajouter.
-    pub fn add_thread(&mut self, tid: TId) -> TaskingResult<()> {
+    pub fn add_thread(&mut self, tid: TId) -> TaskerResult<()> {
         if self.threads.contains(&tid) {
-            return Err(TaskingError::AlreadyExists);
+            return Err(TaskerError::AlreadyExists);
         }
 
         self.threads.insert(tid);
@@ -74,9 +74,9 @@ impl Process {
 
     /// Enlève un thread dans le processus courant.
     /// Renvoie une erreur si le thread à supprimer n'existe pas dans le processus.
-    pub fn remove_thread(&mut self, tid: TId) -> TaskingResult<()> {
+    pub fn remove_thread(&mut self, tid: TId) -> TaskerResult<()> {
         if !self.threads.contains(&tid) {
-            return Err(TaskingError::ThreadNotFound(tid));
+            return Err(TaskerError::ThreadNotFound(tid));
         }
 
         self.threads.remove(&tid);

@@ -5,7 +5,7 @@ pub mod thread;
 
 use alloc::collections::btree_map::BTreeMap;
 use super::process_manager::process::PId;
-use crate::kernel::tasking::{TaskingResult, TaskingError};
+use crate::tasker::{TaskerResult, TaskerError};
 use thread::{TId, Thread};
 
 /// Struture de gestion des threads de l'os.
@@ -67,28 +67,28 @@ impl ThreadManager {
 
     /// Renvoie, si trouver, un emprunt non mutable vers le thread associé à l'identifiant en
     /// paramètre.
-    pub fn get(&self, tid: TId) -> TaskingResult<&Thread> {
+    pub fn get(&self, tid: TId) -> TaskerResult<&Thread> {
         if let Some(thread) = self.threads.get(&tid) {
             return Ok(thread);
         }
 
-        Err(TaskingError::ThreadNotFound(tid))
+        Err(TaskerError::ThreadNotFound(tid))
     }
 
     /// Renvoie, si trouver, un emprunt mutable vers le thread associé à l'identifiant en paramètre.
-    pub fn get_mut(&mut self, tid: TId) -> TaskingResult<&mut Thread> {
+    pub fn get_mut(&mut self, tid: TId) -> TaskerResult<&mut Thread> {
         if let Some(thread) = self.threads.get_mut(&tid) {
             return Ok(thread);
         }
 
-        Err(TaskingError::ThreadNotFound(tid))
+        Err(TaskerError::ThreadNotFound(tid))
     }
 
     /// Détruis le thread interne associé à l'identifiant en paramètre.
     /// Renvoie une erreur si le thread à supprimer n'existe pas.
-    pub fn destroy(&mut self, tid: TId) -> TaskingResult<()> {
+    pub fn destroy(&mut self, tid: TId) -> TaskerResult<()> {
         if self.threads.remove(&tid).is_none() {
-            return Err(TaskingError::ThreadNotFound(tid))
+            return Err(TaskerError::ThreadNotFound(tid))
         }
 
         Ok(())

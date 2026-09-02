@@ -87,6 +87,11 @@ impl Thread {
     pub fn get_state(&self) -> ThreadState {
         self.state
     }
+
+    /// Met l'état du thread courant à mort
+    pub fn kill(&mut self) {
+        self.state = ThreadState::Dead;
+    }
 }
 
 /// Représente l'état d'execution d'un thread.

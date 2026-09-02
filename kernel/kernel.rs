@@ -7,8 +7,6 @@ mod allocator;
 mod syscalls;
 mod user_mode;
 mod elf;
-mod scheduler;
-mod tasking;
 
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
@@ -19,7 +17,6 @@ use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 use memory::BootInfoFrameAllocator;
-use scheduler::Scheduler;
 use memory::init_mapper;
 
 /// Instance global protégée par un OnceLock.
@@ -28,10 +25,6 @@ static KERNEL_INSTANCE: Once<Kernel> = Once::new();
 /// Frame allocator du kernel, lui aussi un singleton.
 /// Accessible via with_frame_allocator
 static FRAME_ALLOCATOR: Once<Mutex<BootInfoFrameAllocator>> = Once::new();
-
-/// Ordonnanceur de tâche, lui aussi un singleton.
-/// Accessible via with_scheduler
-static SCHEDULER: Once<Mutex<Scheduler>> = Once::new();
 
 pub struct Kernel {
     physical_memory_offset: u64,
@@ -112,13 +105,6 @@ impl Kernel {
             Cr0::write(cr0);
         }
 
-        crate::disp_info!("Initialization of the scheduler");
-        SCHEDULER.call_once(|| {
-            Mutex::new(
-                Scheduler::new()
-            )
-        });
-
         crate::disp_info!("Enabling cpu's interruptions.");
         x86_64::instructions::interrupts::enable();
 
@@ -166,13 +152,5 @@ impl Kernel {
             .lock();
 
         f(&mut guard)
-    }
-
-    /// Accesseur de l'instance de l'ordonnanceur de tâche.
-    /// Gère le temp de validité du mutex interne et désactive les interruptions cpu le temps de la
-    /// manoeuvre.
-    pub fn with_scheduler<R>(f: impl FnOnce(&mut Scheduler) -> R) -> R {
-        let scheduler = SCHEDULER.get().expect("The scheduler is not initialized.");
-        x86_64::instructions::interrupts::without_interrupts(|| f(&mut scheduler.lock()))
     }
 }
