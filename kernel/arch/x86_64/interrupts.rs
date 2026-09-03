@@ -1,11 +1,13 @@
 //! Fichier contenant l'implémentation de la gestion de la IDT.<br>
-//! Pour l'instant elle ne fonctionne qu'avec l'architecture x86-64. <br>
+//! Architecture cible : x86-64. <br>
 //! Le code est majoritairement du tutoriel de Philipp Opermann.
-// TODO Faire en sorte que ça fonctionne pour d'autres architectures.
 
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use pic8259::ChainedPics;
 use spin::Lazy;
+use core::arch::naked_asm;
+use crate::memory::cpu::{CpuContext, InterruptFrame};
+use crate::tasker::Tasker;
 use crate::{println, print};
 
 pub const PIC_1_OFFSET: u8 = 32;
@@ -110,20 +112,93 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
     panic!("Error code : {:#?}\n{:#?}", _error_code, stack_frame);
 }
 
-/// Fonction de gestion du timer.
-///
-/// # Argument
-/// * `stack_frame` : message d'interruption du timer.
+/// Fonction assembleur de gestion de l'interruption timer.
+/// Sauvegarde le contexte courant et l'envoie à une fonction rust qui décide du prochain thread à
+/// lancer et qui renvoie son nouveau contexte pour que la fonction courante l'applique.
+#[unsafe(naked)]
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    //print!(".");
-    // On cadence le yield de l'ordonnanceur sur le timer processeur.
-    x86_64::instructions::interrupts::disable();
-    super::scheduler::schedule();
+    naked_asm!(
+        "push rax",
+        "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rsi",
+        "push rdi",
+        "push rbp",
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
 
-    unsafe {
-        PICS.lock().notify_end_of_interrupt(InterruptIndex::Timer.to_u8());
-        // les interruptions sont réactivés par le retour d'interruption
-    }
+        "mov rdi, rsp",             // Arg1: *mut CpuContext
+        "lea rsi, [rsp + 15*8]",    // Arg2: *mut InterruptFrame
+        "call rust_timer_handler",
+
+        "mov rsp, rax",             // Return, *mut CpuContext
+
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+
+        "iretq"
+    )
+}
+
+/// Handler rust de gestion du timer.
+/// Décide du nouveau thread à exécuter et renvoie son contexte d'exécution.
+///
+/// # Arguments
+/// * `current_context`: Contexte cpu à sauvegarder.
+/// * `interrupt_frame`: Frame de l'interruption timer précédente.
+///
+/// # Return
+/// Contexte du nouveau thread à exécuter.
+#[no_mangle]
+extern "C" fn rust_timer_handler(
+    current_context: *mut CpuContext,
+    interrupt_frame: *mut InterruptFrame
+) -> *mut CpuContext {
+    Tasker::on_instance(|tasker| {
+        // On récupère le thread courant et sauvegarde son contexte d'exécution.
+        if let Some(current_tid) = tasker.scheduler.get_current() {
+            if let Some(thread) = tasker.thread_manager.get_mut(current_tid).ok() {
+                unsafe { thread.load_context(*current_context); }
+            }
+        }
+
+        // On choisit un nouveau thread
+        let next_tid = tasker.scheduler.pick_next();
+
+        // On récupère son contexte d'exécution
+        let new_context = match next_tid {
+            Some(tid) => {
+                match tasker.thread_manager.get(tid).ok() {
+                    Some(thread) => thread.get_context(),
+                    None => core::ptr::null_mut()
+                }
+            },
+
+            None => core::ptr::null_mut()
+        };
+
+        new_context
+    })
 }
 
 /// Fonction de gestion des interruptions clavier.<br>

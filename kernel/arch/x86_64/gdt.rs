@@ -1,6 +1,6 @@
-//! Implémentation d'un TSS pour la gestion de double fault.<br>
+//! Implémentation d'un TSS pour la gestion des doubles fault.
+//! Architecture cible : x86_64
 //! Code majoritairement tiré du tutoriel de Philipp Opermann.
-// TODO Implémenter d'autres architectures que le x86_64.
 
 use x86_64::VirtAddr;
 use x86_64::structures::tss::TaskStateSegment;

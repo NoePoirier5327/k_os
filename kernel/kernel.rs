@@ -1,8 +1,6 @@
 //! Contient le singleton du kernel.
 
 mod memory;
-mod gdt;
-mod interrupts;
 mod allocator;
 mod syscalls;
 mod user_mode;
@@ -82,13 +80,13 @@ impl Kernel {
         });
 
         crate::disp_info!("Initialization of the GDT.");
-        gdt::init();
+        crate::arch::x86_64::gdt::init();
 
         crate::disp_info!("Initialization of the IDT");
-        interrupts::init_idt();
+        crate::arch::x86_64::interrupts::init_idt();
 
         crate::disp_info!("Initialization of the PICS driver.");
-        unsafe { interrupts::PICS.lock().initialize() };
+        unsafe { crate::arch::x86_64::interrupts::PICS.lock().initialize() };
 
         crate::disp_info!("Initialization of the SSE support.");
         unsafe {
@@ -110,7 +108,7 @@ impl Kernel {
 
         crate::disp_info!("Enabling syscalls.");
         unsafe {
-            let selectors = gdt::get_selectors();
+            let selectors = crate::arch::x86_64::gdt::get_selectors();
 
             syscalls::init_syscalls(
                 selectors.get_kernel_code_selector(),
