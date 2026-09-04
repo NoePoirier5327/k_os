@@ -4,7 +4,6 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::process_manager::process::PId;
 use crate::memory::cpu::CpuContext;
-use crate::arch::x86_64::gdt;
 
 /// Identifiant d'un thread.
 /// Sert à se référer à un thread dans un processus.
@@ -28,41 +27,17 @@ impl Thread {
     ///
     /// # Arguments
     /// * `parent_pid`: Identifiant du processus parent auquel il est rattaché.
-    /// * `entry`: Adresse d'entrée du nouveau processus.
+    /// * `entry_point`: Adresse d'entrée du nouveau processus.
     /// * `kernel_stack_top`: Adresse du haut de la pile kernel associé au thread courant.
     ///
     /// # Return
     /// Nouveau thread kernel associé au point d'entré en paramètre.
-    pub fn new_kernel(parent_pid: PId, entry: u64, kernel_stack_top: u64) -> Self {
-        let mut rsp = kernel_stack_top;
-
-        unsafe {
-            // Alignement et écriture de la frame initiale sur la pile
-            let context_ptr = (rsp - core::mem::size_of::<CpuContext>() as u64) as *mut CpuContext;
-        
-            *context_ptr = CpuContext {
-                // Frame d'interruption matérielle
-                ss: 0x10,           // Segment de données Kernel (GDT)
-                rsp: kernel_stack_top,
-                rflags: 0x202,      // Interrupts enabled (IF = 1)
-                cs: 0x08,           // Segment de code Kernel (GDT)
-                rip: entry,
-            
-                // Registres initiaux à zéro
-                rax: 0, rbx: 0, rcx: 0, rdx: 0,
-                rsi: 0, rdi: 0, rbp: 0, r8: 0,
-                r9: 0, r10: 0, r11: 0, r12: 0,
-                r13: 0, r14: 0, r15: 0,
-            };
-
-            rsp = context_ptr as u64;
-        }
-
+    pub fn new_kernel(parent_pid: PId, entry_point: u64, kernel_stack_top: u64) -> Self {
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            rsp,
+            rsp: CpuContext::new_kernel(kernel_stack_top, entry_point),
             kernel_stack_top,
             user_stack_top: None
         }
@@ -72,42 +47,18 @@ impl Thread {
     ///
     /// # Arguments
     /// * `parent_pid`: Identifiant du processus parent auquel le thread sera associé.
-    /// * `entry`: Point d'entré de l'exécution du nouveau thread.
+    /// * `entry_point`: Point d'entré de l'exécution du nouveau thread.
     /// * `user_stack_top`: Adresse du haut de la pile utilisateur allouée au thread.
     /// * `kernel_stack_top`: Adresse du haut de la pile kernel allouée au thread.
     ///
     /// # Return
     /// Nouveau thread utilisateur associé au point d'entré en paramètre.
-    pub fn new_user(parent_pid: PId, entry: u64, user_stack_top: u64, kernel_stack_top: u64) -> Self {
-        let mut rsp = kernel_stack_top;
-
-        unsafe {
-            // Écriture du CpuContext en haut de la pile KERNEL du thread
-            let context_ptr = (rsp - core::mem::size_of::<CpuContext>() as u64) as *mut CpuContext;
-
-            *context_ptr = CpuContext {
-                // Frame d'interruption pour le saut en Ring 3 via iretq
-                ss: gdt::get_selectors().get_user_data_selector().0 as u64,
-                rsp: user_stack_top, // Pile utilisateur appliquée au retour de l'interruption
-                rflags: 0x202,       // Interruptions activées (IF = 1)
-                cs: gdt::get_selectors().get_user_code_selector().0 as u64,
-                rip: entry,          // Point d'entrée en espace utilisateur
-
-                // Registres généraux initialisés à zéro
-                rax: 0, rbx: 0, rcx: 0, rdx: 0,
-                rsi: 0, rdi: 0, rbp: 0, r8: 0,
-                r9: 0, r10: 0, r11: 0, r12: 0,
-                r13: 0, r14: 0, r15: 0,
-            };
-
-            rsp = context_ptr as u64;
-        }
-
+    pub fn new_user(parent_pid: PId, entry_point: u64, user_stack_top: u64, kernel_stack_top: u64) -> Self {
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            rsp,
+            rsp: CpuContext::new_user(kernel_stack_top, entry_point, user_stack_top),
             kernel_stack_top,
             user_stack_top: Some(user_stack_top)
         }
@@ -136,6 +87,11 @@ impl Thread {
     /// Renvoie l'adresse du haut de la pile kernel associé au thread courant.
     pub fn get_kernel_stack_top(&self) -> u64 {
         self.kernel_stack_top
+    }
+
+    /// Renvoie le prochain identifiant de thread.
+    pub fn get_next_tid() -> TId {
+        NEXT_TID.load(Ordering::Relaxed)
     }
 }
 
