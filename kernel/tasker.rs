@@ -3,16 +3,19 @@
 mod process_manager;
 mod thread_manager;
 mod scheduler;
+pub mod elf;
 
+use alloc::collections::btree_map::BTreeMap;
 use process_manager::ProcessManager;
 use thread_manager::ThreadManager;
 use process_manager::process::ProcessKind;
 use scheduler::Scheduler;
 use process_manager::process::PId;
-use thread_manager::thread::TId;
+use thread_manager::thread::{Thread, TId};
 use spin::{Once, Mutex};
 use alloc::string::String;
 use crate::arch::x86_64::gdt;
+use crate::arch::x86_64::stack::Stack16Kib;
 use crate::kernel::syscalls::set_new_syscall_stack;
 use crate::tasker::thread_manager::thread::ThreadState;
 
@@ -24,7 +27,8 @@ static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
 pub struct Tasker {
     process_manager: ProcessManager,
     thread_manager: ThreadManager,
-    scheduler: Scheduler
+    scheduler: Scheduler,
+    kernel_stacks: BTreeMap<TId, Stack16Kib>
 }
 
 impl Tasker {
@@ -35,7 +39,8 @@ impl Tasker {
                 Self {
                     process_manager: ProcessManager::new(),
                     thread_manager: ThreadManager::new(),
-                    scheduler: Scheduler::new()
+                    scheduler: Scheduler::new(),
+                    kernel_stacks: BTreeMap::new()
                 }
             )
         );
@@ -50,8 +55,32 @@ impl Tasker {
     }
 
     /// Créer un nouveau processus kernel et renvoie son identifiant.
-    pub fn create_kernel_process(&mut self, name: impl Into<String>) -> PId {
-        self.process_manager.create_kernel_process(name)
+    /// Alloue automatiquement un thread kernel au nouveau processus.
+    ///
+    /// # Arguments
+    /// * `name`: nom du nouveau processus.
+    /// * `entry_point`: point d'entrée du thread attâché au processus.
+    ///
+    /// # Return
+    /// Identifiant du nouveau processus.
+    pub fn create_kernel_process(&mut self, name: impl Into<String>, entry_point: u64) -> TaskerResult<PId> {
+        // On alloue le nouveau processus
+        let pid = self.process_manager.create_kernel_process(name);
+
+        // On alloue la nouvelle pile du thread enfant au nouveau processus.
+        let next_tid = Thread::get_next_tid();
+        self.kernel_stacks.insert(next_tid, Stack16Kib::empty());
+
+        // On alloue le thread enfant.
+        let stack_top = self.kernel_stacks.get(&next_tid).unwrap().get_top();
+        let tid = self.thread_manager.create_kernel_thread(pid, entry_point, stack_top);
+
+        // On l'ajoute au processus parent et à l'ordonnanceur.
+        let _ = self.process_manager.get_mut(pid)?.add_thread(tid);
+        let _ = self.scheduler.add_thread(tid);
+
+        // On renvoie l'identifiant du nouveau processus.
+        Ok(pid)
     }
 
     /// Créer un nouveau processus utilisateur et renvoie son identifiant.
@@ -63,8 +92,7 @@ impl Tasker {
     ///
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent au nouveau thread.
-    /// * `entry`: point d'entré pour l'exécution du nouveau thread.
-    /// * `kernel_stack_top`: haut de la pile kernel allouée au nouveau thread.
+    /// * `entry_point`: point d'entré pour l'exécution du nouveau thread.
     ///
     /// # Return
     /// Si tout va bien, renvoie l'identifiant du nouveau thread.
@@ -72,15 +100,22 @@ impl Tasker {
     pub fn create_kernel_thread(
         &mut self,
         parent_pid: PId,
-        entry: u64,
-        kernel_stack_top: u64
+        entry_point: u64,
     ) -> TaskerResult<TId> {
         let process = self.process_manager.get(parent_pid)?;
         if process.get_kind() == ProcessKind::User {
             return Err(TaskerError::WrongProcessKind);
         }
 
-        let tid = self.thread_manager.create_kernel_thread(parent_pid, entry, kernel_stack_top);
+        // On alloue la pile kernel pour le nouveau thread.
+        let next_tid = Thread::get_next_tid();
+        self.kernel_stacks.insert(next_tid, Stack16Kib::empty());
+
+        // On alloue le nouveau thread
+        let stack_top = self.kernel_stacks.get(&next_tid).unwrap().get_top();
+        let tid = self.thread_manager.create_kernel_thread(parent_pid, entry_point, stack_top);
+
+        // On l'ajoute au processus parent et au scheduler.
         self.process_manager.add_thread(parent_pid, tid)?;
         self.scheduler.add_thread(tid)?;
 
@@ -131,6 +166,7 @@ impl Tasker {
             }
             self.scheduler.remove_thread(tid).ok();
             self.thread_manager.destroy(tid).ok();
+            self.kernel_stacks.remove(&tid);
         }
 
         // puis, on le détruit
@@ -143,8 +179,8 @@ impl Tasker {
     pub fn destroy_thread(&mut self, tid: TId) -> TaskerResult<()> {
         let parent_pid = self.thread_manager.get(tid)?.get_parent_pid();
 
+        self.kernel_stacks.remove(&tid);
         self.scheduler.remove_thread(tid).ok();
-
         self.process_manager.get_mut(parent_pid)?.remove_thread(tid)?;
 
         if let Ok(thread) = self.thread_manager.get_mut(tid) {

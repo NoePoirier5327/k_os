@@ -19,15 +19,18 @@ pub mod arch;
 use core::panic::PanicInfo;
 use kernel::Kernel;
 use tasker::Tasker;
-use arch::x86_64::stack::Stack16Kib;
 
-fn test_kernel() {
+fn test1() {
     loop {
-        crate::disp_debug!("This is a test at kernel level.");
+        crate::disp_debug!("This is displayed by a kernel process.");
     }
 }
 
-static TEST_STACK: Stack16Kib = Stack16Kib::empty();
+fn test2() {
+    loop {
+        crate::disp_debug!("This is displayed by the same process but not the same thread.");
+    }
+}
 
 /// Fonction principal du noyau, elle est appelée par grub après son chargement.<br>
 /// "no_mangle" garde le nom "_start" intact pour que l'assembleur le trouve.
@@ -38,10 +41,11 @@ static TEST_STACK: Stack16Kib = Stack16Kib::empty();
 pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {   
     Kernel::init(multiboot2_info_ptr);
 
-    let (_pid, _tid) = Tasker::on_instance(|tasker| {
-        let pid = tasker.create_kernel_process("test kernel");
-        let tid = tasker.create_kernel_thread(pid, test_kernel as *const () as usize as u64, TEST_STACK.get_top());
-        (pid, tid)
+    Tasker::on_instance(|tasker| {
+        let pid = tasker.create_kernel_process("Test", test1 as *const () as usize as u64)
+            .expect("An error occured during a kernel process creation ");
+        tasker.create_kernel_thread(pid, test2 as *const () as usize as u64)
+            .expect("An error occured during a kernel thread creation ");
     });
 
     hlt_loop();
