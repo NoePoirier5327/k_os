@@ -4,7 +4,6 @@ mod memory;
 mod allocator;
 pub mod syscalls;
 mod user_mode;
-mod elf;
 
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
@@ -158,12 +157,12 @@ impl Kernel {
 
     /// Accesseur de l'instance du frame allocator kernel.
     /// Gère le temps de validité du mutex interne.
+    /// Empêche les interruptions durant l'utilisation du frame_allocator.
     pub fn with_frame_allocator<R>(f: impl FnOnce(&mut BootInfoFrameAllocator) -> R) -> R {
-        let mut guard = FRAME_ALLOCATOR
+        let frame_allocator = FRAME_ALLOCATOR
             .get()
-            .expect("The kernel frame allocator is not initialized.")
-            .lock();
+            .expect("The kernel frame allocator is not initialized.");
 
-        f(&mut guard)
+        x86_64::instructions::interrupts::without_interrupts(|| f(&mut frame_allocator.lock()))
     }
 }
