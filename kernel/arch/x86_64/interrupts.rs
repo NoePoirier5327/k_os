@@ -2,19 +2,19 @@
 //! Architecture cible : x86-64. <br>
 //! Le code est majoritairement du tutoriel de Philipp Opermann.
 
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
+use x86_64::structures::idt::{HandlerFunc, InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use pic8259::ChainedPics;
 use spin::Lazy;
-use core::arch::naked_asm;
-use crate::memory::cpu::{CpuContext, InterruptFrame};
 use crate::tasker::Tasker;
+use core::arch::naked_asm;
 use crate::{println, print};
 
+/// Offsets du driver PIC
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
+/// Instance du driver PIC
 pub static PICS: spin::Mutex<ChainedPics> = spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
-
 
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
@@ -45,7 +45,8 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     }
 
     // On référence la fonction de gestion du timer.
-    idt[InterruptIndex::Timer.to_u8()].set_handler_fn(timer_interrupt_handler);
+    let timer_handler: HandlerFunc = unsafe { core::mem::transmute(timer_interrupt_handler as *const ()) };
+    idt[InterruptIndex::Timer.to_u8()].set_handler_fn(timer_handler);
 
     // On référence la fonction de gestion des entrées claviers.
     // ATTENTION, pour l'instant on ne supporte que les ports ps2.
@@ -112,12 +113,12 @@ extern "x86-interrupt" fn double_fault_handler(stack_frame: InterruptStackFrame,
     panic!("Error code : {:#?}\n{:#?}", _error_code, stack_frame);
 }
 
-/// Fonction assembleur de gestion de l'interruption timer.
-/// Sauvegarde le contexte courant et l'envoie à une fonction rust qui décide du prochain thread à
-/// lancer et qui renvoie son nouveau contexte pour que la fonction courante l'applique.
+/// Gère les interruptions processeur.
+/// Echange les threads courants pour supporter le multiprocessus.
 #[unsafe(naked)]
-extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+extern "C" fn timer_interrupt_handler() {
     naked_asm!(
+        // On sauvegarde les registres généraux du thread sortant
         "push rax",
         "push rbx",
         "push rcx",
@@ -134,12 +135,18 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
         "push r14",
         "push r15",
 
-        "mov rdi, rsp",             // Arg1: *mut CpuContext
-        "lea rsi, [rsp + 15*8]",    // Arg2: *mut InterruptFrame
-        "call rust_timer_handler",
+        // On passe le RSP actuel en 1er argument (RDI dans l'ABI System V)
+        "mov rdi, rsp",
+        "call {handle_switch}",
 
-        "mov rsp, rax",             // Return, *mut CpuContext
+        // On applique le nouveau RSP renvoyé dans RAX par handle_switch
+        "mov rsp, rax",
 
+        // On s'acquitte de l'interruption auprès du pic8259 maître
+        "mov al, 0x20",
+        "out 0x20, al",
+
+        // On restaure les registres généraux du thread entrant
         "pop r15",
         "pop r14",
         "pop r13",
@@ -156,49 +163,10 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
         "pop rbx",
         "pop rax",
 
-        "iretq"
-    )
-}
-
-/// Handler rust de gestion du timer.
-/// Décide du nouveau thread à exécuter et renvoie son contexte d'exécution.
-///
-/// # Arguments
-/// * `current_context`: Contexte cpu à sauvegarder.
-/// * `interrupt_frame`: Frame de l'interruption timer précédente.
-///
-/// # Return
-/// Contexte du nouveau thread à exécuter.
-#[no_mangle]
-extern "C" fn rust_timer_handler(
-    current_context: *mut CpuContext,
-    interrupt_frame: *mut InterruptFrame
-) -> *mut CpuContext {
-    Tasker::on_instance(|tasker| {
-        // On récupère le thread courant et sauvegarde son contexte d'exécution.
-        if let Some(current_tid) = tasker.scheduler.get_current() {
-            if let Some(thread) = tasker.thread_manager.get_mut(current_tid).ok() {
-                unsafe { thread.load_context(*current_context); }
-            }
-        }
-
-        // On choisit un nouveau thread
-        let next_tid = tasker.scheduler.pick_next();
-
-        // On récupère son contexte d'exécution
-        let new_context = match next_tid {
-            Some(tid) => {
-                match tasker.thread_manager.get(tid).ok() {
-                    Some(thread) => thread.get_context(),
-                    None => core::ptr::null_mut()
-                }
-            },
-
-            None => core::ptr::null_mut()
-        };
-
-        new_context
-    })
+        // On quitte l'interruption (restaure RIP, CS, RFLAGS, RSP, SS)
+        "iretq",
+        handle_switch = sym Tasker::handle_switch,
+    );
 }
 
 /// Fonction de gestion des interruptions clavier.<br>

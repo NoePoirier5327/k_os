@@ -12,6 +12,9 @@ use process_manager::process::PId;
 use thread_manager::thread::TId;
 use spin::{Once, Mutex};
 use alloc::string::String;
+use crate::arch::x86_64::gdt;
+use crate::kernel::syscalls::set_new_syscall_stack;
+use crate::tasker::thread_manager::thread::ThreadState;
 
 /// Unique instance de l'interface de gestion des processus.
 static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
@@ -126,8 +129,8 @@ impl Tasker {
             if let Ok(thread) = self.thread_manager.get_mut(tid) {
                 thread.kill();
             }
-            self.thread_manager.destroy(tid).ok();
             self.scheduler.remove_thread(tid).ok();
+            self.thread_manager.destroy(tid).ok();
         }
 
         // puis, on le détruit
@@ -139,19 +142,72 @@ impl Tasker {
     /// Renvoie une erreur si le thread est introuvable.
     pub fn destroy_thread(&mut self, tid: TId) -> TaskerResult<()> {
         let parent_pid = self.thread_manager.get(tid)?.get_parent_pid();
+
+        self.scheduler.remove_thread(tid).ok();
+
         self.process_manager.get_mut(parent_pid)?.remove_thread(tid)?;
+
         if let Ok(thread) = self.thread_manager.get_mut(tid) {
             thread.kill();
         }
+
         self.thread_manager.destroy(tid).ok();
-        self.scheduler.remove_thread(tid).ok();
         Ok(())
+    }
+
+    /// Fonction de changement de contexte entre deux threads.
+    ///
+    /// # Argument
+    /// * `old_rsp`: pointeur de pile du thread sortant.
+    ///
+    /// # Return
+    /// Pointeur de pile du nouveau thread à s'exécuter.
+    pub extern "C" fn handle_switch(old_rsp: u64) -> u64 {
+        Tasker::on_instance(|tasker| {
+            // Sauvegarde du RSP dans le thread sortant
+            if let Some(current_tid) = tasker.scheduler.get_current() {
+                if let Ok(thread) = tasker.thread_manager.get_mut(current_tid) {
+                    thread.rsp = old_rsp;
+
+                    // On remet le thread sortant dans la file d'attente de l'ordonnanceur
+                    // s'il est en état de tourner ou est prêt.
+                    if thread.state == ThreadState::Ready || thread.state == ThreadState::Running {
+                        // On le remet à prêt tant qu'il n'est pas courant.
+                        thread.state = ThreadState::Ready;
+                        tasker.scheduler.add_thread(current_tid).ok();
+                    }
+                }
+            }
+
+            // Sélection du thread entrant
+            if let Some(next_tid) = tasker.scheduler.pick_next() {
+                if let Ok(next_thread) = tasker.thread_manager.get_mut(next_tid) {
+                    // On change l'état du nouveau thread à running.
+                    next_thread.state = ThreadState::Running;
+
+                    // On met à jour le registre cr3 si nécessaire.
+                    let parent_pid = next_thread.get_parent_pid();
+                    if let Ok(process) = tasker.process_manager.get(parent_pid) {
+                        unsafe { process.get_address_space().swap_pml4() };
+                    }
+
+                    // On met à jour la tss et la pile d'appels système.
+                    gdt::set_tss_rsp0(next_thread.get_kernel_stack_top());
+                    unsafe { set_new_syscall_stack(next_thread.get_kernel_stack_top()); }
+
+                    return next_thread.rsp;
+                }
+            }
+
+            // Si aucun thread à exécuter, on conserve l'actuel
+            old_rsp
+        })
     }
 }
 
 /// Type centralisant les erreurs de l'interface de gestion des processus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TaskerError {
+pub enum TaskerError {
     /// On ne trouve pas de processus avec l'identifiant en paramètre.
     ProcessNotFound(PId),
 

@@ -32,10 +32,22 @@ impl Scheduler {
     /// Supprime un thread de l'ordonnanceur.
     /// Renvoie une erreur s'il est introuvable.
     pub fn remove_thread(&mut self, tid: TId) -> TaskerResult<()> {
-        if self.ready_queue.remove(tid).is_none() {
-            return Err(TaskerError::ThreadNotFound(tid))
+        if let Some(pos) = self.ready_queue.iter().position(|&t| t == tid) {
+            self.ready_queue.remove(pos);
+            return Ok(())
         }
+        Err(TaskerError::ThreadNotFound(tid))
+    }
 
-        Ok(())
+    /// Réorganise et renvoie le prochain thread.
+    pub fn pick_next(&mut self) -> Option<TId> {
+        let tid = self.ready_queue.pop_front()?;
+        self.current = Some(tid);
+        Some(tid)
+    }
+
+    /// Renvoie l'identifiant du thread courant.
+    pub fn get_current(&self) -> Option<TId> {
+        self.current
     }
 }

@@ -98,6 +98,14 @@ pub unsafe fn init_syscalls(
     SFMask::write(x86_64::registers::rflags::RFlags::INTERRUPT_FLAG);
 }
 
+/// Modifie l'entrée kernel_stack du KERNEL_GS_DATA.
+///
+/// # Safety
+/// la pile en paramètre doit être une pile kernel saine.
+pub unsafe fn set_new_syscall_stack(stack_top: u64) {
+    KERNEL_GS_DATA.kernel_stack = stack_top;
+} 
+
 /// Dispatcher d'appels système, appel les fonctions kernels correspondantes au syscall courant.
 ///
 /// # Arguments
@@ -157,7 +165,7 @@ unsafe extern "sysv64" fn syscall_entry() {
         "mov rdx, rsi", // arg2
         "mov rsi, rdi", // arg1
         "mov rdi, rax", // id
-        "call syscall_dispatcher",
+        "call {syscall_dispatcher}",
         // le résultat du retour du syscall est dans le registre RAX.
 
         // On récupère l'état d'éxecution du thread utilisateur.
@@ -178,6 +186,7 @@ unsafe extern "sysv64" fn syscall_entry() {
         "mov rsp, gs:[0x10]",
         "swapgs",
         "sysretq",
+        syscall_dispatcher = sym syscall_dispatcher,
     );
 }
 

@@ -35,6 +35,14 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
     tss
 });
 
+/// Modifie l'entrée rsp0 de la tss courante à un nouveau haut de pile.
+pub fn set_tss_rsp0(stack_top: u64) {
+    unsafe {
+        let tss_ptr = &*TSS as *const TaskStateSegment as *mut TaskStateSegment;
+        (*tss_ptr).privilege_stack_table[0] = x86_64::VirtAddr::new(stack_top);
+    }
+}
+
 /// Type gérant les segments mémoire pour le déplacement de pile.
 #[derive(Debug, Clone, Copy)]
 pub struct Selectors {

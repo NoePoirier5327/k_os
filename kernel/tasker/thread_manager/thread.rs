@@ -3,6 +3,8 @@
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::process_manager::process::PId;
+use crate::memory::cpu::CpuContext;
+use crate::arch::x86_64::gdt;
 
 /// Identifiant d'un thread.
 /// Sert à se référer à un thread dans un processus.
@@ -15,8 +17,8 @@ static NEXT_TID: AtomicUsize = AtomicUsize::new(1usize);
 pub struct Thread {
     tid: TId,
     parent_pid: PId,
-    context: CpuContext,
-    state: ThreadState,
+    pub rsp: u64,
+    pub state: ThreadState,
     kernel_stack_top: u64,
     user_stack_top: Option<u64>
 }
@@ -32,16 +34,35 @@ impl Thread {
     /// # Return
     /// Nouveau thread kernel associé au point d'entré en paramètre.
     pub fn new_kernel(parent_pid: PId, entry: u64, kernel_stack_top: u64) -> Self {
+        let mut rsp = kernel_stack_top;
+
+        unsafe {
+            // Alignement et écriture de la frame initiale sur la pile
+            let context_ptr = (rsp - core::mem::size_of::<CpuContext>() as u64) as *mut CpuContext;
+        
+            *context_ptr = CpuContext {
+                // Frame d'interruption matérielle
+                ss: 0x10,           // Segment de données Kernel (GDT)
+                rsp: kernel_stack_top,
+                rflags: 0x202,      // Interrupts enabled (IF = 1)
+                cs: 0x08,           // Segment de code Kernel (GDT)
+                rip: entry,
+            
+                // Registres initiaux à zéro
+                rax: 0, rbx: 0, rcx: 0, rdx: 0,
+                rsi: 0, rdi: 0, rbp: 0, r8: 0,
+                r9: 0, r10: 0, r11: 0, r12: 0,
+                r13: 0, r14: 0, r15: 0,
+            };
+
+            rsp = context_ptr as u64;
+        }
+
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            context: CpuContext {
-                rip: entry,
-                rsp: kernel_stack_top,
-                rflags: 0x202,
-                registers: [0u64; 16]
-            },
+            rsp,
             kernel_stack_top,
             user_stack_top: None
         }
@@ -58,16 +79,35 @@ impl Thread {
     /// # Return
     /// Nouveau thread utilisateur associé au point d'entré en paramètre.
     pub fn new_user(parent_pid: PId, entry: u64, user_stack_top: u64, kernel_stack_top: u64) -> Self {
+        let mut rsp = kernel_stack_top;
+
+        unsafe {
+            // Écriture du CpuContext en haut de la pile KERNEL du thread
+            let context_ptr = (rsp - core::mem::size_of::<CpuContext>() as u64) as *mut CpuContext;
+
+            *context_ptr = CpuContext {
+                // Frame d'interruption pour le saut en Ring 3 via iretq
+                ss: gdt::get_selectors().get_user_data_selector().0 as u64,
+                rsp: user_stack_top, // Pile utilisateur appliquée au retour de l'interruption
+                rflags: 0x202,       // Interruptions activées (IF = 1)
+                cs: gdt::get_selectors().get_user_code_selector().0 as u64,
+                rip: entry,          // Point d'entrée en espace utilisateur
+
+                // Registres généraux initialisés à zéro
+                rax: 0, rbx: 0, rcx: 0, rdx: 0,
+                rsi: 0, rdi: 0, rbp: 0, r8: 0,
+                r9: 0, r10: 0, r11: 0, r12: 0,
+                r13: 0, r14: 0, r15: 0,
+            };
+
+            rsp = context_ptr as u64;
+        }
+
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            context: CpuContext { 
-                rip: entry,
-                rsp: user_stack_top,
-                rflags: 0x202,
-                registers: [0u64; 16]
-            },
+            rsp,
             kernel_stack_top,
             user_stack_top: Some(user_stack_top)
         }
@@ -92,33 +132,18 @@ impl Thread {
     pub fn kill(&mut self) {
         self.state = ThreadState::Dead;
     }
+
+    /// Renvoie l'adresse du haut de la pile kernel associé au thread courant.
+    pub fn get_kernel_stack_top(&self) -> u64 {
+        self.kernel_stack_top
+    }
 }
 
 /// Représente l'état d'execution d'un thread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ThreadState {
     Ready,
-    Busy,
+    Running,
     Blocked,
     Dead
-}
-
-/// Représente le context d'exécution CPU d'un thread.
-#[derive(Clone, Copy)]
-pub struct CpuContext {
-    pub rip: u64,
-    pub rsp: u64,
-    pub rflags: u64,
-    pub registers: [u64; 16]
-}
-
-impl CpuContext {
-    pub fn empty() -> Self {
-        Self {
-            rip: 0u64,
-            rsp: 0u64,
-            rflags: 0u64,
-            registers: [0u64; 16]
-        }
-    }
 }

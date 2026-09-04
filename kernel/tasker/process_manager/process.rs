@@ -3,9 +3,13 @@
 
 use alloc::collections::btree_set::BTreeSet;
 use alloc::string::String;
+use x86_64::registers::control::Cr3;
+use x86_64::structures::paging::{PhysFrame, Size4KiB};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::thread_manager::thread::TId;
+use crate::kernel::Kernel;
 use crate::tasker::{TaskerError, TaskerResult};
+use crate::memory::user::new_user_pml4;
 
 /// Identifiant d'un processus.
 /// Sert aux threads à se référer à leurs parents et au ProcessManager à se référer à ses
@@ -36,7 +40,7 @@ impl Process {
             name: name.into(),
             kind: ProcessKind::Kernel,
             state: ProcessState::Alive,
-            address_space: AddressSpace::kernel(),
+            address_space: AddressSpace::new(false),
             threads: BTreeSet::new()
         }
     }
@@ -51,7 +55,7 @@ impl Process {
             name: name.into(),
             kind: ProcessKind::User,
             state: ProcessState::Alive,
-            address_space: AddressSpace::user(),
+            address_space: AddressSpace::new(true),
             threads: BTreeSet::new()
         }
     }
@@ -107,6 +111,11 @@ impl Process {
     pub fn kill(&mut self) {
         self.state = ProcessState::Dead;
     }
+
+    /// Renvoie l'espace d'adressage du processus courant.
+    pub fn get_address_space(&self) -> &AddressSpace {
+        &self.address_space
+    }
 }
 
 /// Représente le type de processus avec lequel on travaille.
@@ -126,26 +135,48 @@ pub enum ProcessState {
 
 /// Représente l'espace d'adressage courant d'un processus.
 pub struct AddressSpace {
-    is_user: bool
+    is_user: bool,
+    pml4_frame: PhysFrame<Size4KiB>
 }
 
 impl AddressSpace {
-    /// Instancie un espace d'adressage réservé au kernel.
-    pub fn kernel() -> Self {
-        Self {
-            is_user: false
-        }
-    }
+    /// Instancie un nouvel espace d'adressage.
+    ///
+    /// # Arguments
+    /// * `is_user`: détermine si l'espace d'adressage est réservé à l'utilisateur ou au kernel.
+    pub fn new(is_user: bool) -> Self {
+        let pml4_frame = match is_user {
+            // Si c'est un processus utilisateur
+            // on lui alloue une nouvelle pml4.
+            true => new_user_pml4(),
 
-    /// Instancie un espace d'adressage réservé à l'utilisateur.
-    pub fn user() -> Self {
+            // Si c'est un processus kernel
+            // on lui donne la pml4 kernel
+            false => Kernel::on_instance().get_pml4_frame()
+        };
+
         Self {
-            is_user: true
+            is_user,
+            pml4_frame
         }
     }
 
     /// Permet de savoir si l'espace d'adressage courant est réservé à l'utilisateur ou au kernel.
     pub fn is_user(&self) -> bool {
         self.is_user
+    }
+
+    /// Renvoie la frame physique pml4 de l'espace d'adressage courant.
+    pub fn get_pml4_frame(&self) -> PhysFrame<Size4KiB> {
+        self.pml4_frame
+    }
+
+    /// Echange la pml4 courante avec la pml4 de l'espace d'addressage courant.
+    pub unsafe fn swap_pml4(&self) {
+        let (current_frame, flags) = Cr3::read();
+
+        if current_frame != self.pml4_frame {
+            Cr3::write(self.pml4_frame, flags);
+        }
     }
 }

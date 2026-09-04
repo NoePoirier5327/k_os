@@ -2,7 +2,7 @@
 
 mod memory;
 mod allocator;
-mod syscalls;
+pub mod syscalls;
 mod user_mode;
 mod elf;
 
@@ -11,11 +11,13 @@ use multiboot2::BootInformationHeader;
 use multiboot2::MemoryMapTag;
 use spin::Once;
 use spin::Mutex;
+use x86_64::registers::control::Cr3;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 use memory::BootInfoFrameAllocator;
 use memory::init_mapper;
+use x86_64::structures::paging::PhysFrame;
 
 /// Instance global protégée par un OnceLock.
 static KERNEL_INSTANCE: Once<Kernel> = Once::new();
@@ -26,6 +28,7 @@ static FRAME_ALLOCATOR: Once<Mutex<BootInfoFrameAllocator>> = Once::new();
 
 pub struct Kernel {
     physical_memory_offset: u64,
+    pml4_frame: PhysFrame,
 }
 
 impl Kernel {
@@ -103,6 +106,12 @@ impl Kernel {
             Cr0::write(cr0);
         }
 
+        crate::disp_info!("Copying kernel pml4 frame.");
+        let (pml4_frame, _)= Cr3::read();
+
+        crate::disp_info!("Initialization of the tasker.");
+        crate::tasker::Tasker::init();
+
         crate::disp_info!("Enabling cpu's interruptions.");
         x86_64::instructions::interrupts::enable();
 
@@ -120,6 +129,7 @@ impl Kernel {
 
         KERNEL_INSTANCE.call_once(|| Kernel {
             physical_memory_offset,
+            pml4_frame,
         })
     }
 
@@ -139,6 +149,11 @@ impl Kernel {
     /// Créer à la demande un mapper kernel dans le higher half.
     pub fn mapper(&self) -> OffsetPageTable<'static> {
         unsafe { memory::init_mapper(VirtAddr::new(self.physical_memory_offset)) }
+    }
+
+    /// Renvoie le cadre physique dans lequel est contenu la pml4 noyau.
+    pub fn get_pml4_frame(&self) -> PhysFrame {
+        self.pml4_frame
     }
 
     /// Accesseur de l'instance du frame allocator kernel.

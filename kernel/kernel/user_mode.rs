@@ -5,6 +5,7 @@ use x86_64::VirtAddr;
 use x86_64::structures::paging::{OffsetPageTable, PageTable, PhysFrame, FrameAllocator};
 use x86_64::registers::control::Cr3;
 use crate::kernel::Kernel;
+use crate::arch::x86_64::gdt;
 
 
 /// Adresse de début de la pile utilisateur.
@@ -60,7 +61,7 @@ unsafe fn enter_user_mode(
     // On l'active pour que les interruptions matérielles restent actives en Ring 3.
     let rflags: u64 = 0x202; 
 
-    let selectors = super::gdt::get_selectors();
+    let selectors = gdt::get_selectors();
     let user_code_selector: u64 = selectors.get_user_code_selector().0 as u64;
     let user_data_selector: u64 = selectors.get_user_data_selector().0 as u64;
 
