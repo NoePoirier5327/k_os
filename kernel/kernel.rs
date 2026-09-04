@@ -40,7 +40,7 @@ impl Kernel {
     /// Accès vers la nouvelle instance du kernel (si une instance est déjà en train de tourner,
     /// renvoie son instance à la place).
     pub fn init(multiboot2_info_ptr: u64) -> &'static Kernel {
-        let physical_memory_offset = 0xFFFF_FFFF_8000_0000;
+        let physical_memory_offset = 0xFFFF_8000_0000_0000u64;
         super::vga_buffer::init(physical_memory_offset);
 
         // Vérifications de validitée pour le pointeur multiboot2.

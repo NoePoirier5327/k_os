@@ -29,7 +29,6 @@ boot:
   ; On s'assure que le pointeur de pile est placé correctement
   extern stack_top
   mov rsp, stack_top
-  mov rsi, 0xffffffff80000000 ; 2eme argument : physical_memory_offset
   add rsp, rsi ; On place la pile dans le higher half
 
   mov rdi, r8 ; On récupère le pointeur multiboot2.

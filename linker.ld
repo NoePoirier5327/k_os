@@ -17,12 +17,12 @@ SECTIONS
 
     /* On passe au higher-half */
     /* On définit l'offset pour le reste du noyau (MCMODEL=KERNEL) */
-    . += 0xFFFFFFFF80000000;
+    . += 0xFFFF800000000000;
 
     __kernel_start = .;
 
     /* Code du noyau Rust */
-    .text : AT(ADDR(.text) - 0xFFFFFFFF80000000)
+    .text : AT(ADDR(.text) - 0xFFFF800000000000)
     {
         __text_start = .;
         *(.text .text.*)
@@ -31,7 +31,7 @@ SECTIONS
     }
 
     /* Données en lecture seule */
-    .rodata : AT(ADDR(.rodata) - 0xFFFFFFFF80000000)
+    .rodata : AT(ADDR(.rodata) - 0xFFFF800000000000)
     {
         __rodata_start = .;
         *(.rodata .rodata.*)
@@ -40,7 +40,7 @@ SECTIONS
     }
 
     /* Données initialisées */
-    .data : AT(ADDR(.data) - 0xFFFFFFFF80000000)
+    .data : AT(ADDR(.data) - 0xFFFF800000000000)
     {
         __data_start = .;
         *(.data .data.*)
@@ -49,7 +49,7 @@ SECTIONS
     }
 
     /* Données non-initialisées et pile */
-    .bss : AT(ADDR(.bss) - 0xFFFFFFFF80000000)
+    .bss : AT(ADDR(.bss) - 0xFFFF800000000000)
     {
         __bss_start = .;
         *(.bss .bss.*)

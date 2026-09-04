@@ -138,8 +138,8 @@ set_up_page_tables:
   or eax, 0b11 ; present + writable
   mov [p4_table], eax
 
-  ; On place la 511ème entrée de P4 sur la P3
-  mov [p4_table + 511 * 8], eax
+  ; On place la 256ème entrée de P4 sur la P3
+  mov [p4_table + 256 * 8], eax
 
   ; On place la première entrée de la P3 sur la P2
   mov eax, p2_table
