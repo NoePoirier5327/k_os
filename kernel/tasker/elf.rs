@@ -1,5 +1,5 @@
 use goblin::elf::{Elf, program_header::PT_LOAD};
-use x86_64::{VirtAddr, structures::paging::{FrameAllocator, Mapper, Size4KiB, Page, PageTableFlags}};
+use x86_64::{VirtAddr, structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags}};
 use crate::kernel::Kernel;
 
 #[repr(align(2048))]
@@ -9,7 +9,8 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// Charge un executable elf64 pour x86_64 dans la zone mémoire utilisateur.
 ///
 /// # Arguments
-/// - elf_bytes : contenu du fichier elf64 à chargé en mémoire.
+/// - `elf_bytes`: contenu du fichier elf64 à chargé en mémoire.
+/// - `user_mapper`: mapper utilisateur chargé de charger l'elf en zone utilisateur.
 ///
 /// # Return
 /// Adresse virtuelle du programme en mémoire.
@@ -19,6 +20,7 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// - L'architecture cible des executables doit être x86_64.
 pub unsafe fn load_elf(
     elf_bytes: &[u8],
+    user_mapper: &mut OffsetPageTable<'static>
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
     let virt_mem_offset = VirtAddr::new(Kernel::on_instance().physical_memory_offset());
@@ -42,11 +44,9 @@ pub unsafe fn load_elf(
         for page in Page::range_inclusive(start_page, end_page) {
             // On empêche un deadlock en desactivant les interruptions.
             let frame = x86_64::instructions::interrupts::without_interrupts(|| {
-                let mut mapper = Kernel::on_instance().mapper();
-
                 Kernel::with_frame_allocator(|frame_allocator| {
                     let frame = frame_allocator.allocate_frame().expect("Not enough memory left.");
-                    mapper.map_to(page, frame, flags, frame_allocator).unwrap().flush();
+                    user_mapper.map_to(page, frame, flags, frame_allocator).unwrap().flush();
 
                     frame
                 })

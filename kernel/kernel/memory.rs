@@ -1,6 +1,7 @@
 //! Fichier contenant des procédures de gestion de la mémoire du noyau comme le paging.<br>
 //! code majoritairement tiré du tutoriel de Philipp Opermann.
 
+use alloc::vec::Vec;
 use x86_64::structures::paging::page_table::FrameError;
 use x86_64::structures::paging::{
     Page,
@@ -10,7 +11,8 @@ use x86_64::structures::paging::{
     PageTableFlags,
     PageTable,
     OffsetPageTable,
-    PhysFrame
+    PhysFrame,
+    FrameDeallocator
 };
 use x86_64::registers::control::Cr3;
 use x86_64::{VirtAddr, PhysAddr};
@@ -32,25 +34,11 @@ pub static USER_PAGES_START : u64 = USER_STACK_START + USER_STACK_SIZE as u64;
 pub static USER_PAGES_END : u64 = KERNEL_PAGES_START - 1;
 pub static KERNEL_PAGES_START : u64 = 0x8000_0000;
 
-
-/// Initialise un mapper positionné sur l'offset de la mémoire physique.
-///
-/// # Argument
-/// * `physical_memory_offset`: offset sur lequel configuré le nouveau mapper.
-/// 
-/// # Return
-/// Nouveau mapper configuré sur l'offset en paramètre.
-pub unsafe fn init_mapper(
-    physical_memory_offset: VirtAddr,
-) -> OffsetPageTable<'static> {
-    let level_4_table = active_level_4_table(physical_memory_offset);
-    OffsetPageTable::new(level_4_table, physical_memory_offset)
-}
-
 /// Structure d'un alloueur mémoire simple.
 pub struct BootInfoFrameAllocator {
     memory_map : &'static MemoryMapTag,
-    next : usize
+    next : usize,
+    freelist: Vec<PhysFrame>
 }
 
 impl BootInfoFrameAllocator {
@@ -68,6 +56,7 @@ impl BootInfoFrameAllocator {
         BootInfoFrameAllocator {
             memory_map,
             next: 0,
+            freelist: Vec::new()
         }
     }
 
@@ -97,9 +86,22 @@ impl BootInfoFrameAllocator {
 
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
+        // On réutilise en prioritée les frames déjà désallouées.
+        if let Some(frame) = self.freelist.pop() {
+            return Some(frame)
+        }
+
+        // Sinon, on utilise la suivante.
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame
+    }
+}
+
+impl FrameDeallocator<Size4KiB> for BootInfoFrameAllocator {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+        // On met la frame disponible dans la liste de recyclage.
+        self.freelist.push(frame);
     }
 }
 

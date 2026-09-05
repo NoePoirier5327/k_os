@@ -1,7 +1,5 @@
 //! Fichier principal du kernel, chargé par grub au démarrage dans start.asm.
 
-// TODO Implémenter un guard page sous les piles d'appels pour gérer le stack overflow.
-
 #![no_std]
 #![no_main]
 
@@ -19,6 +17,8 @@ pub mod arch;
 use core::panic::PanicInfo;
 use kernel::Kernel;
 use tasker::Tasker;
+
+use crate::tasker::elf::AlignedElfBinary;
 
 fn test1() {
     loop {
@@ -42,10 +42,16 @@ pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {
     Kernel::init(multiboot2_info_ptr);
 
     Tasker::on_instance(|tasker| {
-        let pid = tasker.create_kernel_process("Test", test1 as *const () as usize as u64)
+        // On créer un processus kernel à deux threads.
+        let kernel_pid = tasker.create_kernel_process("Test", test1 as *const () as usize as u64)
             .expect("An error occured during a kernel process creation ");
-        tasker.create_kernel_thread(pid, test2 as *const () as usize as u64)
+        tasker.create_kernel_thread(kernel_pid, test2 as *const () as usize as u64)
             .expect("An error occured during a kernel thread creation ");
+
+        // Qu'on supperpose à un processus utilisateur monothread.
+        static ELF_BYTES: &AlignedElfBinary<[u8]> = &AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
+        let _ = tasker.create_user_process("Hello", &ELF_BYTES.0)
+            .expect("An error occured during a user process creation ");
     });
 
     hlt_loop();

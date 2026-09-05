@@ -11,11 +11,13 @@ use multiboot2::MemoryMapTag;
 use spin::Once;
 use spin::Mutex;
 use x86_64::registers::control::Cr3;
+use x86_64::registers::control::Efer;
+use x86_64::registers::control::EferFlags;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
 use x86_64::structures::paging::OffsetPageTable;
 use x86_64::VirtAddr;
 use memory::BootInfoFrameAllocator;
-use memory::init_mapper;
+use x86_64::structures::paging::PageTable;
 use x86_64::structures::paging::PhysFrame;
 
 /// Instance global protégée par un OnceLock.
@@ -52,6 +54,16 @@ impl Kernel {
             crate::disp_warning!("Unaligned multiboot2 information pointer.");
         }
 
+        crate::disp_info!("Enabling no-execute (NX) bit support.");
+        unsafe {
+            let mut efer = Efer::read();
+            efer.insert(EferFlags::NO_EXECUTE_ENABLE);
+            Efer::write(efer);
+        }
+
+        crate::disp_info!("Copying kernel pml4 frame.");
+        let (pml4_frame, _)= Cr3::read();
+
         crate::disp_info!("Initialization of the kernel frame allocator");
         FRAME_ALLOCATOR.call_once(|| 
             Mutex::new(
@@ -73,7 +85,13 @@ impl Kernel {
             )
         );
 
-        let mut mapper = unsafe { init_mapper(VirtAddr::new(physical_memory_offset)) };
+        let mut mapper = unsafe {
+            let virt_mem_offset = VirtAddr::new(physical_memory_offset);
+            let phys_frame = pml4_frame.start_address();
+            let virt_frame = virt_mem_offset + phys_frame.as_u64();
+            let page_table_ptr: *mut PageTable = virt_frame.as_mut_ptr();
+            OffsetPageTable::new(&mut *page_table_ptr, virt_mem_offset)
+        };
 
         crate::disp_info!("Initialization of the kernel heap.");
         Kernel::with_frame_allocator(|frame_allocator| {
@@ -104,9 +122,6 @@ impl Kernel {
             cr0.insert(Cr0Flags::MONITOR_COPROCESSOR); // Définir MP
             Cr0::write(cr0);
         }
-
-        crate::disp_info!("Copying kernel pml4 frame.");
-        let (pml4_frame, _)= Cr3::read();
 
         crate::disp_info!("Initialization of the tasker.");
         crate::tasker::Tasker::init();
@@ -147,7 +162,13 @@ impl Kernel {
 
     /// Créer à la demande un mapper kernel dans le higher half.
     pub fn mapper(&self) -> OffsetPageTable<'static> {
-        unsafe { memory::init_mapper(VirtAddr::new(self.physical_memory_offset)) }
+        unsafe {
+            let virt_mem_offset = VirtAddr::new(self.physical_memory_offset);
+            let phys_frame = self.pml4_frame.start_address();
+            let virt_frame = virt_mem_offset + phys_frame.as_u64();
+            let page_table_ptr: *mut PageTable = virt_frame.as_mut_ptr();
+            OffsetPageTable::new(&mut *page_table_ptr, virt_mem_offset)
+        }
     }
 
     /// Renvoie le cadre physique dans lequel est contenu la pml4 noyau.

@@ -6,6 +6,7 @@ pub mod thread;
 use alloc::collections::btree_map::BTreeMap;
 use super::process_manager::process::PId;
 use crate::tasker::{TaskerResult, TaskerError};
+use crate::arch::x86_64::stack::{KernelStack16Kib, UserStack16Kib};
 use thread::{TId, Thread};
 
 /// Struture de gestion des threads de l'os.
@@ -26,7 +27,7 @@ impl ThreadManager {
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent auquel il est associé.
     /// * `entry`: point d'entré pour l'exécution du nouveau thread.
-    /// * `kernel_stack_top`: adresse de haut de la pile kernel allouée au nouveau thread.
+    /// * `kernel_stack`: Pile kernel allouée au nouveau thread.
     ///
     /// # Return
     /// Identifiant du nouveau thread.
@@ -34,9 +35,9 @@ impl ThreadManager {
         &mut self,
         parent_pid: PId,
         entry: u64,
-        kernel_stack_top: u64
+        kernel_stack: KernelStack16Kib
     ) -> TId {
-        let thread = Thread::new_kernel(parent_pid, entry, kernel_stack_top);
+        let thread = Thread::new_kernel(parent_pid, entry, kernel_stack);
         let tid = thread.get_tid();
         self.threads.insert(tid, thread);
         tid
@@ -47,8 +48,8 @@ impl ThreadManager {
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent auquel il est associé.
     /// * `entry`: point d'entré pour l'exécution du nouveau thread.
-    /// * `user_stack_top`: haut de la pile d'exécution utilisateur allouée au nouveau thread.
-    /// * `kernel_stack_top`: haut de la pile d'exécution kernel allouée au nouveau thread.
+    /// * `user_stack_top`: Pile d'exécution utilisateur allouée au nouveau thread.
+    /// * `kernel_stack_top`: Pile d'exécution kernel allouée au nouveau thread.
     ///
     /// # Return
     /// Identifiant du nouveau thread.
@@ -56,10 +57,10 @@ impl ThreadManager {
         &mut self,
         parent_pid: PId,
         entry: u64,
-        user_stack_top: u64,
-        kernel_stack_top: u64
+        user_stack: UserStack16Kib,
+        kernel_stack: KernelStack16Kib
     ) -> TId {
-        let thread = Thread::new_user(parent_pid, entry, user_stack_top, kernel_stack_top);
+        let thread = Thread::new_user(parent_pid, entry, user_stack, kernel_stack);
         let tid = thread.get_tid();
         self.threads.insert(tid, thread);
         tid

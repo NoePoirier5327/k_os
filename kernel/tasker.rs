@@ -5,17 +5,17 @@ mod thread_manager;
 mod scheduler;
 pub mod elf;
 
-use alloc::collections::btree_map::BTreeMap;
 use process_manager::ProcessManager;
 use thread_manager::ThreadManager;
 use process_manager::process::ProcessKind;
 use scheduler::Scheduler;
 use process_manager::process::PId;
-use thread_manager::thread::{Thread, TId};
+use thread_manager::thread::TId;
 use spin::{Once, Mutex};
 use alloc::string::String;
 use crate::arch::x86_64::gdt;
-use crate::arch::x86_64::stack::Stack16Kib;
+use crate::arch::x86_64::stack::{KernelStack16Kib, UserStack16Kib, KernelStackAllocator};
+use crate::kernel::Kernel;
 use crate::kernel::syscalls::set_new_syscall_stack;
 use crate::tasker::thread_manager::thread::ThreadState;
 
@@ -28,7 +28,7 @@ pub struct Tasker {
     process_manager: ProcessManager,
     thread_manager: ThreadManager,
     scheduler: Scheduler,
-    kernel_stacks: BTreeMap<TId, Stack16Kib>
+    kernel_stack_allocator: KernelStackAllocator,
 }
 
 impl Tasker {
@@ -40,7 +40,7 @@ impl Tasker {
                     process_manager: ProcessManager::new(),
                     thread_manager: ThreadManager::new(),
                     scheduler: Scheduler::new(),
-                    kernel_stacks: BTreeMap::new()
+                    kernel_stack_allocator: KernelStackAllocator::new()
                 }
             )
         );
@@ -68,12 +68,18 @@ impl Tasker {
         let pid = self.process_manager.create_kernel_process(name);
 
         // On alloue la nouvelle pile du thread enfant au nouveau processus.
-        let next_tid = Thread::get_next_tid();
-        self.kernel_stacks.insert(next_tid, Stack16Kib::empty());
+        let mut kernel_mapper = Kernel::on_instance().mapper();
+        let top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                self.kernel_stack_allocator.deallocate_top(top_vaddr);
+                return Err(e);
+            }
+        };
 
         // On alloue le thread enfant.
-        let stack_top = self.kernel_stacks.get(&next_tid).unwrap().get_top();
-        let tid = self.thread_manager.create_kernel_thread(pid, entry_point, stack_top);
+        let tid = self.thread_manager.create_kernel_thread(pid, entry_point, kernel_stack);
 
         // On l'ajoute au processus parent et à l'ordonnanceur.
         let _ = self.process_manager.get_mut(pid)?.add_thread(tid);
@@ -84,8 +90,58 @@ impl Tasker {
     }
 
     /// Créer un nouveau processus utilisateur et renvoie son identifiant.
-    pub fn create_user_process(&mut self, name: impl Into<String>) -> PId {
-        self.process_manager.create_user_process(name)
+    /// Alloue un obligatoirement un thread utilisateur enfant.
+    /// Cette méthode sert à charger des processus issues de binaire elf
+    ///
+    /// # Arguments
+    /// * `name`: nom du nouveau processus.
+    /// * `elf_bytes`: contenu de l'executable binaire sur lequel lancer le nouveau thread.
+    pub fn create_user_process(
+        &mut self,
+        name: impl Into<String>,
+        elf_bytes: &[u8],
+        ) -> TaskerResult<PId> {
+        // On alloue un nouveau processus.
+        let pid = self.process_manager.create_user_process(name);
+        let process = self.process_manager.get_mut(pid)?;
+
+        // On créer le mapper utilisateur associé au nouveau processus.
+        let mut user_mapper = unsafe { process.get_address_space().mapper() };
+
+        // On parse le binaire elf en entrée.
+        let entry_point = unsafe { elf::load_elf(elf_bytes, &mut user_mapper) };
+
+        // On alloue la pile kernel du thread enfant.
+        let mut kernel_mapper = Kernel::on_instance().mapper();
+        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
+                return Err(e)
+            }
+        };
+
+        // On alloue le haut de pile pour le nouveau thread utilisateur.
+        let user_top_vaddr = process.allocate_top_vaddr()?;
+
+        // On alloue la pile utilisateur du thread enfant.
+        let user_stack = match unsafe { UserStack16Kib::allocate(&mut user_mapper, user_top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                process.deallocate_top_vaddr(user_top_vaddr).ok();
+                return Err(e)
+            }
+        };
+
+        // On alloue le thread enfant
+        let tid = self.thread_manager.create_user_thread(pid, entry_point.as_u64(), user_stack, kernel_stack);
+
+        // On l'ajoute à l'ordonnanceur et à son processus parent.
+        self.scheduler.add_thread(tid)?;
+        process.add_thread(tid)?;
+
+        Ok(pid)
     }
 
     /// Créer un nouveau thread kernel et l'associe avec son processus parent.
@@ -108,12 +164,18 @@ impl Tasker {
         }
 
         // On alloue la pile kernel pour le nouveau thread.
-        let next_tid = Thread::get_next_tid();
-        self.kernel_stacks.insert(next_tid, Stack16Kib::empty());
+        let mut kernel_mapper = Kernel::on_instance().mapper();
+        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
+                return Err(e)
+            }
+        };
 
         // On alloue le nouveau thread
-        let stack_top = self.kernel_stacks.get(&next_tid).unwrap().get_top();
-        let tid = self.thread_manager.create_kernel_thread(parent_pid, entry_point, stack_top);
+        let tid = self.thread_manager.create_kernel_thread(parent_pid, entry_point, kernel_stack);
 
         // On l'ajoute au processus parent et au scheduler.
         self.process_manager.add_thread(parent_pid, tid)?;
@@ -126,9 +188,7 @@ impl Tasker {
     ///
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent au nouveau thread.
-    /// * `entry`: point d'entré pour l'exécution du nouveau thread.
-    /// * `user_stack_top`: hauteur de la pile utilisateur allouée au nouveau thread.
-    /// * `kernel_stack_top`: haut de la pile kernel allouée au nouveau thread.
+    /// * `entry_point`: point d'entré pour l'exécution du nouveau thread.
     ///
     /// # Return
     /// Si tout va bien, renvoie l'identifiant du nouveau thread.
@@ -136,16 +196,34 @@ impl Tasker {
     pub fn create_user_thread(
         &mut self,
         parent_pid: PId,
-        entry: u64,
-        user_stack_top: u64,
-        kernel_stack_top: u64
+        entry_point: u64,
     ) -> TaskerResult<TId> {
-        let process = self.process_manager.get(parent_pid)?;
+        let process = self.process_manager.get_mut(parent_pid)?;
         if process.get_kind() == ProcessKind::Kernel {
             return Err(TaskerError::WrongProcessKind);
         }
 
-        let tid = self.thread_manager.create_user_thread(parent_pid, entry, user_stack_top, kernel_stack_top);
+        let mut kernel_mapper = Kernel::on_instance().mapper();
+        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
+                return Err(e)
+            }
+        };
+
+        let mut user_mapper = unsafe { process.get_address_space().mapper() };
+        let user_top_vaddr = process.allocate_top_vaddr()?;
+        let user_stack = match unsafe { UserStack16Kib::allocate(&mut user_mapper, user_top_vaddr) } {
+            Ok(stack) => stack,
+            Err(e) => {
+                process.deallocate_top_vaddr(user_top_vaddr).ok();
+                return Err(e)
+            }
+        };
+
+        let tid = self.thread_manager.create_user_thread(parent_pid, entry_point, user_stack, kernel_stack);
         self.process_manager.add_thread(parent_pid, tid)?;
         self.scheduler.add_thread(tid)?;
 
@@ -156,17 +234,12 @@ impl Tasker {
     /// Renvoie une erreur si le processus est introuvable.
     pub fn destroy_process(&mut self, pid: PId) -> TaskerResult<()> {
         // On détruit les threads auquel il est associé.
-        self.process_manager.get_mut(pid)?.kill(); // On marque le processus courant comme mort pour
-                                                   // eviter qu'il tourne pendant qu'on le détruit.
-        let tids = self.process_manager.get(pid)?.get_threads().clone();
+        let process = self.process_manager.get_mut(pid)?;
+        process.kill();
+
+        let tids = process.get_threads().clone();
         for tid in tids {
-            // On ignore l'erreur de non existence lors de la suppression.
-            if let Ok(thread) = self.thread_manager.get_mut(tid) {
-                thread.kill();
-            }
-            self.scheduler.remove_thread(tid).ok();
-            self.thread_manager.destroy(tid).ok();
-            self.kernel_stacks.remove(&tid);
+            self.destroy_thread_inner(tid, pid).ok();
         }
 
         // puis, on le détruit
@@ -178,16 +251,48 @@ impl Tasker {
     /// Renvoie une erreur si le thread est introuvable.
     pub fn destroy_thread(&mut self, tid: TId) -> TaskerResult<()> {
         let parent_pid = self.thread_manager.get(tid)?.get_parent_pid();
+        self.destroy_thread_inner(tid, parent_pid).ok();
+        Ok(())
+    }
 
-        self.kernel_stacks.remove(&tid);
+    /// Détruis un thread en prenant en paramètre son processus parent.
+    /// On ne fait pas trop attention aux erreurs car le but est de déallouer la mémoire.
+    /// Algorithme "best-effort"
+    fn destroy_thread_inner(&mut self, tid: TId, pid: PId) -> TaskerResult<()> {
+        let process = match self.process_manager.get_mut(pid) {
+            Ok(process) => process,
+
+            // S'il y a une erreur à la recupération du processus, on reviens à l'appelant.
+            _ => return Ok(())
+        };
+
+        // On le retire de son thread parent et de l'ordonnanceur
         self.scheduler.remove_thread(tid).ok();
-        self.process_manager.get_mut(parent_pid)?.remove_thread(tid)?;
+        process.remove_thread(tid).ok();
 
         if let Ok(thread) = self.thread_manager.get_mut(tid) {
             thread.kill();
+            
+            // On désalloue sa pile kernel d'abord.
+            let top_vaddr = thread.get_kernel_top_vaddr();
+            self.kernel_stack_allocator.deallocate_top(top_vaddr);
+            thread.deallocate_kernel_stack();
+
+            // Puis si le processus et lui sont de type utilisateur
+            // on désalloue la pile utilisateur.
+            if process.get_kind() == ProcessKind::User && thread.get_parent_pid() == pid {
+                if let Ok(top_vaddr) = thread.get_user_stack_top_vaddr() {
+                    process.deallocate_top_vaddr(top_vaddr).ok();
+                }
+
+                let mut user_mapper = unsafe { process.get_address_space().mapper() };
+                thread.deallocate_user_stack(&mut user_mapper).ok();
+            }
         }
 
+        // enfin, on libère la mémoire du thread.
         self.thread_manager.destroy(tid).ok();
+
         Ok(())
     }
 
@@ -250,12 +355,21 @@ pub enum TaskerError {
     /// On ne trouve pas de thread avec l'identifiant en paramètre.
     ThreadNotFound(TId),
 
-    /// On manipule deux processus n'ayant pas le même type.
+    /// On manipule un processus n'ayant pas le type auquel on s'attendait.
     WrongProcessKind,
 
-     /// On essaie d'ajouter un élément qui existe déjà.
+    /// On essaie d'ajouter un élément qui existe déjà.
     AlreadyExists,
+
+    /// Plus assez de mémoire pour l'allocation de pile.
+    OutOfMemory,
+
+    /// Impossible de mapper une frame dans un mapper utilisateur.
+    MappingFailed,
+
+    /// Signale une addresse mal alignée ou inaccessible.
+    UnalignedAddress,
 }
 
 /// Interface de manipulation des resultats pouvant renvoyer des Result.
-type TaskerResult<T> = Result<T, TaskerError>;
+pub type TaskerResult<T> = Result<T, TaskerError>;

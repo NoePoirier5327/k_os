@@ -3,10 +3,12 @@
 
 use alloc::collections::btree_set::BTreeSet;
 use alloc::string::String;
+use x86_64::VirtAddr;
 use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{PhysFrame, Size4KiB};
+use x86_64::structures::paging::{OffsetPageTable, PhysFrame, Size4KiB};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::thread_manager::thread::TId;
+use crate::arch::x86_64::stack::UserStackAllocator;
 use crate::kernel::Kernel;
 use crate::tasker::{TaskerError, TaskerResult};
 use crate::memory::user::new_user_pml4;
@@ -26,6 +28,7 @@ pub struct Process {
     kind: ProcessKind,
     state: ProcessState,
     address_space: AddressSpace,
+    user_stack_allocator: Option<UserStackAllocator>,
     threads: BTreeSet<TId>,
 }
 
@@ -41,6 +44,7 @@ impl Process {
             kind: ProcessKind::Kernel,
             state: ProcessState::Alive,
             address_space: AddressSpace::new(false),
+            user_stack_allocator: None,
             threads: BTreeSet::new()
         }
     }
@@ -56,6 +60,7 @@ impl Process {
             kind: ProcessKind::User,
             state: ProcessState::Alive,
             address_space: AddressSpace::new(true),
+            user_stack_allocator: Some(UserStackAllocator::new()),
             threads: BTreeSet::new()
         }
     }
@@ -116,6 +121,29 @@ impl Process {
     pub fn get_address_space(&self) -> &AddressSpace {
         &self.address_space
     }
+
+    /// Alloue et renvoie une nouvelle top vaddr pour l'allocation de pile utilisateur pour les
+    /// threads enfant.
+    /// Renvoie une erreur si le processus cible est kernel et non utilisateur.
+    pub fn allocate_top_vaddr(&mut self) -> TaskerResult<VirtAddr> {
+        if let Some(stack_allocator) = &mut self.user_stack_allocator {
+            return Ok(stack_allocator.allocate_top())
+        }
+
+        Err(TaskerError::WrongProcessKind)
+    }
+
+    /// Desalloue le top_vaddr d'un thread enfant.
+    /// Renvoie une erreur si le processus est de type kernel et non utilisateur.
+    pub fn deallocate_top_vaddr(&mut self, top_vaddr: VirtAddr) -> TaskerResult<()> {
+        if let Some(stack_allocator) = &mut self.user_stack_allocator {
+            stack_allocator.free_top(top_vaddr);
+
+            return Ok(())
+        }
+
+        Err(TaskerError::WrongProcessKind)
+    }
 }
 
 /// Représente le type de processus avec lequel on travaille.
@@ -166,11 +194,6 @@ impl AddressSpace {
         self.is_user
     }
 
-    /// Renvoie la frame physique pml4 de l'espace d'adressage courant.
-    pub fn get_pml4_frame(&self) -> PhysFrame<Size4KiB> {
-        self.pml4_frame
-    }
-
     /// Echange la pml4 courante avec la pml4 de l'espace d'addressage courant.
     pub unsafe fn swap_pml4(&self) {
         let (current_frame, flags) = Cr3::read();
@@ -178,5 +201,14 @@ impl AddressSpace {
         if current_frame != self.pml4_frame {
             Cr3::write(self.pml4_frame, flags);
         }
+    }
+
+    /// Renvoie un mapper associé à la pml4 courante
+    pub unsafe fn mapper(&self) -> OffsetPageTable<'static> {
+        let virt_mem_offset = VirtAddr::new(Kernel::on_instance().physical_memory_offset());
+        let pml4_virt = virt_mem_offset + self.pml4_frame.start_address().as_u64();
+        let pml4_ref = unsafe { &mut *pml4_virt.as_mut_ptr() };
+
+        unsafe { OffsetPageTable::new(pml4_ref, virt_mem_offset) }
     }
 }
