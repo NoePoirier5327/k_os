@@ -1,12 +1,16 @@
-rax,Name,rdi,rsi,rdx,Description
-0x00,sys_disp,msg : char*,msg_len : size_t,,Affiche le message en paramètre à l’écran. La chaîne en paramètre est une chaîne donc se termine par le caractère \0.
-0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,Change la couleur d’affichage dans le buffer vga.
-0x02,sys_palloc,,,,Alloue une page de 4ko accessible à l’utilisateur.
-0x03,sys_newthread,proc_adr : uint,,,Créer un nouveau thread dans l’ordonnanceur.
-0x04,sys_fown,owner (?),file_path : char *,file_path_size : size_t,Change le propriétaire du fichier en paramètre.
-0x05,sys_exec,file_path : char *,file_path_size : size_t,,Exécute un processus utilisateur.
-0x06,sys_shutdown,,,,Eteint le kernel ainsi que la machine.
-0x07,sys_kill,process_id : uint,kill_code : uint,,Arrête un processus de gré ou de force.
-0x08,sys_exit,exit_code : int,,,Signal au noyau une fin de processus utilisateur.
-0x09,sys_umemcpy,adr : long,,,Place une adresse dans les pages utilisateur.
-0x0A,sys_ralloc,adr : long,len : size_t,,Alloue une région mémoire à l’utilisateur.
+rax,Name,rdi,rsi,rdx,r10,r8,Retour dans rax,Description
+0x00,sys_disp,msg : char*,msg_len : size_t,,,,"Si positif, l’ecriture s’est bien passé, sinon, code d’erreur spécifique.",Affiche le message en paramètre à l’écran.
+0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,,,"Si positif, changement effectué, sinon, code d’erreur spécifique.",Change la couleur d’affichage dans le buffer vga.
+0x02,sys_palloc,,,,,,,Alloue une page de 4ko accessible à l’utilisateur.
+0x03,sys_key_read,,,,,,"Si positif, entrée clavier, sinon, code d’erreur spécifique.",Renvoie le dernier caractère saisie par l’utilisateur sur le clavier.
+0x04,sys_fown,owner (?),file_path : char *,file_path_size : size_t,,,,Change le propriétaire du fichier en paramètre.
+0x05,sys_exec,file_path : char *, argv: char**,,,,,Exécute un processus utilisateur.
+0x06,sys_shutdown,,,,,,,Eteint le kernel ainsi que la machine.
+0x07,sys_pkill,process_handle: size_t,kill_code : uint,,,,,Tue un processus en fonction de son entrée dans la table de processus enfant du processus courant.
+0x08,sys_exit,exit_code : int,,,,,,Signal au noyau une fin de processus utilisateur.
+0x09,sys_umemcpy,adr : long,,,,,,Place une adresse dans les pages utilisateur.
+0x0A,sys_ralloc,adr : long,len : size_t,,,,,Alloue une région mémoire à l’utilisateur.
+0x0B,sys_create_job,parent_job : size_t – handle vers le job parent,max_ram_bytes : size_t,policy : uint64_t,,,"Si positif, handle du nouveau job, sinon, code d’erreur spécifique.",Créer un nouveau job dépendant de son parent avec ses propres limites d’usage de ram et sa politique d’exécution.
+0x0C,sys_create_process,job : size_t,name : char*,name_len : size_t,executable_path : char*,path_len : size_t,"Si positif, handle du nouveau processus, sinon, code d’erreur spécifique.",Créer un nouveau processus ainsi qu’un thread enfant lancé sur l’executable elf64 en paramètre.
+0x0D,sys_create_empty_process,job : size_t,name : char*,name_len : size_t,,,"Si positif, handle, dans le parent, du nouveau processus enfant, sinon, code d’erreur spécifique.",Créer un nouveau processus vide.
+0x0E,sys_create_thread,parent_process_handle : size_t,entry_point : uint64_t,,,,"Si positif, handle dans le processus parent, sinon, code d’erreur spécifique.",Créer un nouveau thread associé à un processus parent.
