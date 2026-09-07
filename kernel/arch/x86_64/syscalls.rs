@@ -2,7 +2,7 @@
 //! l'initialisation du support de ces derniers pour l'architecture x86_64.
 
 use crate::arch::hal::syscalls::SyscallInterface;
-use crate::arch::x86_64::gdt::X86_64CPU_CONTEXT;
+use crate::arch::x86_64::gdt::x86_64_CPU_CONTEXT;
 use x86_64::VirtAddr;
 use x86_64::registers::control::{Efer, EferFlags};
 use x86_64::registers::model_specific::{KernelGsBase, LStar, Star, SFMask};
@@ -30,7 +30,8 @@ static mut KERNEL_GS_DATA: KernelGsData = KernelGsData {
     user_rsp: 0,
 };
 
-pub static X86_64SYSCALL_INTERFACE: X86_64SyscallInterface = X86_64SyscallInterface;
+#[allow(non_upper_case_globals)]
+pub static x86_64_SYSCALL_INTERFACE: X86_64SyscallInterface = X86_64SyscallInterface;
 
 /// Interface de gestion des syscalls pour l'architecture x86_64.
 struct X86_64SyscallInterface;
@@ -54,7 +55,7 @@ impl SyscallInterface for X86_64SyscallInterface {
         }
 
         // Le registre STAR indique au cpu quels segments charger lors de syscall/sysret.
-        let selectors = X86_64CPU_CONTEXT.selectors;
+        let selectors = x86_64_CPU_CONTEXT.selectors;
         match Star::write(
             selectors.get_user_code_selector(),
             selectors.get_user_data_selector(),

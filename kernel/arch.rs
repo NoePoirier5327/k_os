@@ -12,11 +12,11 @@ pub use x86_64::interrupts::PIC_CONTROLLER as INTERRUPTION_CONTROLLER;
 
 // Aux contextes d'exécutions
 #[cfg(target_arch = "x86_64")]
-pub use x86_64::gdt::X86_64CPU_CONTEXT as CPU_CONTEXT;
+pub use x86_64::gdt::x86_64_CPU_CONTEXT as CPU_CONTEXT;
 
 // Aux interfaces d'appels systèmes
 #[cfg(target_arch = "x86_64")]
-pub use x86_64::syscalls::X86_64SYSCALL_INTERFACE as SYSCALL_INTERFACE;
+pub use x86_64::syscalls::x86_64_SYSCALL_INTERFACE as SYSCALL_INTERFACE;
 
 /// Détecte et renvoie l'architecture courante.
 pub const CURRENT_ARCH: ArchType = 
