@@ -304,6 +304,9 @@ impl Tasker {
     /// # Return
     /// Pointeur de pile du nouveau thread à s'exécuter.
     pub extern "C" fn handle_switch(old_rsp: u64) -> u64 {
+        use crate::arch::INTERRUPTION_CONTROLLER;
+        use crate::arch::hal::interrupts::{InterruptionType, InterruptionController};
+
         Tasker::on_instance(|tasker| {
             // Sauvegarde du RSP dans le thread sortant
             if let Some(current_tid) = tasker.scheduler.get_current() {
@@ -339,6 +342,9 @@ impl Tasker {
                     return next_thread.rsp;
                 }
             }
+
+            // On s'acquitte de l'interruption timer du cpu.
+            { INTERRUPTION_CONTROLLER.lock().end_of_interrupt(InterruptionType::Timer); }
 
             // Si aucun thread à exécuter, on conserve l'actuel
             old_rsp

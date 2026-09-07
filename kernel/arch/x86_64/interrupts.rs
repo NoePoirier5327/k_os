@@ -1,39 +1,105 @@
-//! Fichier contenant l'implémentation de la gestion de la IDT.<br>
-//! Architecture cible : x86-64. <br>
-//! Le code est majoritairement du tutoriel de Philipp Opermann.
+//! Fichier contenant l'implémentation de la gestion de la IDT
 
 use x86_64::structures::idt::{HandlerFunc, InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use pic8259::ChainedPics;
-use spin::Lazy;
+use spin::{Lazy, Mutex};
 use crate::tasker::Tasker;
 use core::arch::naked_asm;
 use crate::{println, print};
+use crate::arch::hal::interrupts::{InterruptionType, InterruptionController};
+
+/// Interface globale du contrôleur d'interruption pic.
+/// Contient un mutex en interne sur la gestion de sa logique.
+pub static PIC_CONTROLLER: Mutex<PicController> = Mutex::new(unsafe { PicController::new() });
 
 /// Offsets du driver PIC
-pub const PIC_1_OFFSET: u8 = 32;
-pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
+const PIC_1_OFFSET: u8 = 32;
+const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 
-/// Instance du driver PIC
-pub static PICS: spin::Mutex<ChainedPics> = spin::Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
-
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum InterruptIndex {
-    Timer = PIC_1_OFFSET,
-    Keyboard
+/// Instance du contrôleur d'interruptions pour x86_64.
+pub struct PicController {
+    pics: ChainedPics
 }
 
-impl InterruptIndex {
-    /// Fonction de transtypage du type InterruptIndex en u8.
-    ///
-    /// # Return
-    /// u8 correspondant à l'instance de InterruptIndex courante.
-    pub fn to_u8(self) -> u8 {
-        self as u8
+impl PicController {
+    /// Instancie un nouveau contrôleur pic.
+    /// 
+    /// # Safety
+    /// L'appelant doit s'assurer qu'il n'y a qu'une seule instance de contrôleur par coeur cpu.
+    pub const unsafe fn new() -> Self {
+        Self {
+            pics: ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET)
+        }
     }
 }
 
-pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
+impl InterruptionController for PicController {
+    fn init(&mut self) {
+        // On initialise le contrôleur
+        unsafe { self.pics.initialize() };
+
+        // Puis, on charge la table d'interruption
+        IDT.load();
+        unsafe {
+            configure_pit();
+        }
+    }
+
+    fn enable(&mut self, i_type: InterruptionType) {
+        let irq_line = i_type.to_irq_line();
+        unsafe {
+            let [mut mask1, mut mask2] = self.pics.read_masks();
+            if irq_line < 8 {
+                mask1 &= !(1 << irq_line);
+            }
+            else {
+                mask2 &= !(1 << irq_line);
+            }
+            self.pics.write_masks(mask1, mask2);
+        }
+    }
+
+    fn disable(&mut self, i_type: InterruptionType) {
+        let irq_line = i_type.to_irq_line();
+        unsafe {
+            let [mut mask1, mut mask2] = self.pics.read_masks();
+            if irq_line < 8 {
+                mask1 |= 1 << irq_line;
+            }
+            else {
+                mask2 |= 1 << irq_line;
+            }
+            self.pics.write_masks(mask1, mask2);
+        }
+    }
+
+    fn end_of_interrupt(&mut self, i_type: InterruptionType) {
+        let irq = i_type.to_u8();
+        unsafe {
+            self.pics.notify_end_of_interrupt(irq);
+        }
+    }
+}
+
+impl InterruptionType {
+    /// Implémentation de la transformation d'interruption vers un index dans la table d'interruption.
+    fn to_u8(&self) -> u8 {
+        match self {
+            InterruptionType::Timer => PIC_1_OFFSET,
+            InterruptionType::Keyboard => PIC_1_OFFSET + 1
+        }
+    }
+
+    /// Renvoie la ligne irq brut du pic (0 à 15)
+    fn to_irq_line(&self) -> u8 {
+        match self {
+            InterruptionType::Timer => 0u8,
+            InterruptionType::Keyboard => 1u8
+        }
+    }
+}
+
+static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
     let mut idt = InterruptDescriptorTable::new();
 
     // On référence la fonction de gestion de breakpoint.
@@ -46,28 +112,19 @@ pub static IDT: Lazy<InterruptDescriptorTable> = Lazy::new(|| {
 
     // On référence la fonction de gestion du timer.
     let timer_handler: HandlerFunc = unsafe { core::mem::transmute(timer_interrupt_handler as *const ()) };
-    idt[InterruptIndex::Timer.to_u8()].set_handler_fn(timer_handler);
+    idt[InterruptionType::Timer.to_u8()].set_handler_fn(timer_handler);
 
     // On référence la fonction de gestion des entrées claviers.
     // ATTENTION, pour l'instant on ne supporte que les ports ps2.
     // Cependant, les ports USB sont émulés en ps2 donc pas de problème pour le moment.
 
-    idt[InterruptIndex::Keyboard.to_u8()].set_handler_fn(keyboard_interrupt_handler);
+    idt[InterruptionType::Keyboard.to_u8()].set_handler_fn(keyboard_interrupt_handler);
 
     idt.page_fault.set_handler_fn(page_fault_handler);
     idt.invalid_opcode.set_handler_fn(invalid_iterruption_code_handler);
 
     idt
 });
-
-
-/// Initialise la table d'interruption processeur.
-pub fn init_idt() {
-    IDT.load();
-    unsafe {
-        configure_pit();
-    }
-}
 
 /// Fonction de configuration des interruptions processeurs. <br>
 /// Cadence les interruptions à 10 ms.
@@ -142,10 +199,6 @@ extern "C" fn timer_interrupt_handler() {
         // On applique le nouveau RSP renvoyé dans RAX par handle_switch
         "mov rsp, rax",
 
-        // On s'acquitte de l'interruption auprès du pic8259 maître
-        "mov al, 0x20",
-        "out 0x20, al",
-
         // On restaure les registres généraux du thread entrant
         "pop r15",
         "pop r14",
@@ -200,9 +253,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         };
     }
 
-    unsafe {
-        PICS.lock().notify_end_of_interrupt(InterruptIndex::Keyboard.to_u8());
-    }
+    PIC_CONTROLLER.lock().end_of_interrupt(InterruptionType::Keyboard);
 }
 
 /// Fonction de gestion des dépassements d'accès mémoire aussi appelé page fault.

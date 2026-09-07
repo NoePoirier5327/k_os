@@ -5,6 +5,7 @@ mod allocator;
 pub mod syscalls;
 mod user_mode;
 
+use crate::arch::hal::interrupts::InterruptionController;
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
 use multiboot2::MemoryMapTag;
@@ -102,11 +103,8 @@ impl Kernel {
         crate::disp_info!("Initialization of the GDT.");
         crate::arch::x86_64::gdt::init();
 
-        crate::disp_info!("Initialization of the IDT");
-        crate::arch::x86_64::interrupts::init_idt();
-
-        crate::disp_info!("Initialization of the PICS driver.");
-        unsafe { crate::arch::x86_64::interrupts::PICS.lock().initialize() };
+        crate::disp_info!("Initialization of the interruption controller.");
+        { crate::arch::INTERRUPTION_CONTROLLER.lock().init(); }
 
         crate::disp_info!("Initialization of the SSE support.");
         unsafe {
