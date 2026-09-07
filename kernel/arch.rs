@@ -4,7 +4,7 @@
 pub mod x86_64;
 
 /// Détecte et renvoie l'architecture courante.
-const CURRENT_ARCH: ArchType = 
+pub const CURRENT_ARCH: ArchType = 
     if cfg!(target_arch = "x86_64") { ArchType::x86_64 }
     else if cfg!(target_arch = "aarch64") { ArchType::aarch64 }
     else if cfg!(target_arch = "riscv64") { ArchType::riscv64 }
@@ -12,7 +12,7 @@ const CURRENT_ARCH: ArchType =
 
 /// Réprésente l'architecture cible sur laquelle tourne le noyau.
 #[allow(non_camel_case_types)]
-enum ArchType {
+pub enum ArchType {
     x86_64,
     aarch64,
     riscv64,
