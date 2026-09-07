@@ -31,12 +31,13 @@ static mut KERNEL_GS_DATA: KernelGsData = KernelGsData {
 };
 
 #[allow(non_upper_case_globals)]
-pub static x86_64_SYSCALL_INTERFACE: X86_64SyscallInterface = X86_64SyscallInterface;
+pub static x86_64_SYSCALL_INTERFACE: x86_64_SyscallInterface = x86_64_SyscallInterface;
 
 /// Interface de gestion des syscalls pour l'architecture x86_64.
-struct X86_64SyscallInterface;
+#[allow(non_camel_case_types)]
+struct x86_64_SyscallInterface;
 
-impl SyscallInterface for X86_64SyscallInterface {
+impl SyscallInterface for x86_64_SyscallInterface {
     fn init(&self) {
         crate::disp_info!("Enabling x86_64 syscalls (MSRs/GS base).");
 
