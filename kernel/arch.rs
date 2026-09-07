@@ -3,6 +3,7 @@
 
 pub mod x86_64;
 
+/// Détecte et renvoie l'architecture courante.
 const CURRENT_ARCH: ArchType = 
     if cfg!(target_arch = "x86_64") { ArchType::x86_64 }
     else if cfg!(target_arch = "aarch64") { ArchType::aarch64 }
