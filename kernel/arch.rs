@@ -6,9 +6,13 @@ mod x86_64;
 /// Module d'abstraction global, c'est à lui que seront fait les appelles.
 pub mod hal;
 
-// Définition des interface génériques d'appelle aux interruption
+// Définition des interface génériques d'appelle aux interruptions
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::interrupts::PIC_CONTROLLER as INTERRUPTION_CONTROLLER;
+
+// Aux contextes d'exécutions
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::gdt::X86_64CPU_CONTEXT as CPU_CONTEXT;
 
 /// Détecte et renvoie l'architecture courante.
 pub const CURRENT_ARCH: ArchType = 

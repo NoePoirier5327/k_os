@@ -5,14 +5,30 @@
 use x86_64::VirtAddr;
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor, SegmentSelector};
-use spin::Lazy;
-
+use spin::{Lazy, Mutex};
+use crate::arch::hal::cpu::CpuContext;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
-/// S'occupe de trouver une zone mémoire saine et accessible pour replacer
-/// le pointeur de pile.
-static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
+/// Gère les sélecteurs de segments x86_64.
+#[derive(Debug, Clone, Copy)]
+struct Selector {
+    pub kernel_code_selector: SegmentSelector,
+    pub kernel_data_selector: SegmentSelector,
+    pub user_code_selector: SegmentSelector,
+    pub user_data_selector: SegmentSelector,
+    pub tss_selector: SegmentSelector
+}
+
+/// Rpérésente le contexte d'exécution du processeur x86_64
+#[allow(non_camel_case_types)]
+struct x86_64CpuContext {
+    gdt: GlobalDescriptorTable,
+    selectors: Selector,
+    tss: Mutex<TaskStateSegment>
+}
+
+pub static X86_64CPU_CONTEXT: Lazy<x86_64CpuContext> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
 
     // Pile saine utilisée lors de Double Fault
@@ -28,94 +44,53 @@ static TSS: Lazy<TaskStateSegment> = Lazy::new(|| {
     tss.privilege_stack_table[0] = {
         const STACK_SIZE: u64 = 4096 * 5;
         static mut KERNEL_RSP0_STACK: [u8; STACK_SIZE as usize] = [0; STACK_SIZE as usize];
+
         let stack_start = VirtAddr::from_ptr(&raw const KERNEL_RSP0_STACK);
         stack_start + STACK_SIZE
     };
 
-    tss
-});
-
-/// Modifie l'entrée rsp0 de la tss courante à un nouveau haut de pile.
-pub fn set_tss_rsp0(stack_top: u64) {
-    unsafe {
-        let tss_ptr = &*TSS as *const TaskStateSegment as *mut TaskStateSegment;
-        (*tss_ptr).privilege_stack_table[0] = x86_64::VirtAddr::new(stack_top);
-    }
-}
-
-/// Type gérant les segments mémoire pour le déplacement de pile.
-#[derive(Debug, Clone, Copy)]
-pub struct Selectors {
-    kernel_code_selector: SegmentSelector,
-    kernel_data_selector: SegmentSelector,
-    user_code_selector: SegmentSelector,
-    user_data_selector: SegmentSelector,
-    tss_selector: SegmentSelector
-}
-
-impl Selectors {
-    pub fn get_kernel_code_selector(&self) -> SegmentSelector {
-        self.kernel_code_selector
-    }
-
-    pub fn get_kernel_data_selector(&self) -> SegmentSelector {
-        self.kernel_data_selector
-    }
-
-    pub fn get_user_code_selector(&self) -> SegmentSelector {
-        self.user_code_selector
-    }
-
-    pub fn get_user_data_selector(&self) -> SegmentSelector {
-        self.user_data_selector
-    }
-
-    pub fn get_tss_selector(&self) -> SegmentSelector {
-        self.tss_selector
-    }
-}
-
-
-/// Accesseur des selecteurs de la gdt courante.
-pub fn get_selectors() -> Selectors {
-    GDT.1
-}
-
-
-/// S'occupe de déplacer le pointeur de pile lors de double fault.
-static GDT: Lazy<(GlobalDescriptorTable, Selectors)> = Lazy::new(|| {
     let mut gdt = GlobalDescriptorTable::new();
-
     let kernel_code_selector = gdt.append(Descriptor::kernel_code_segment());
     let kernel_data_selector = gdt.append(Descriptor::kernel_data_segment());
-    let user_data_selector = gdt.append(Descriptor::user_data_segment());
     let user_code_selector = gdt.append(Descriptor::user_code_segment());
+    let user_data_selector = gdt.append(Descriptor::user_data_segment());
+    let tss_selector = gdt.append(Descriptor::tss_segment(unsafe {
+        core::mem::transmute::<&TaskStateSegment, &'static TaskStateSegment>(&tss)
+    }));
 
-    let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
-
-    (gdt, Selectors { 
-        kernel_code_selector,
-        kernel_data_selector,
-        user_code_selector,
-        user_data_selector,
-        tss_selector
-    })
+    x86_64CpuContext { 
+        gdt,
+        selectors: Selector {
+            kernel_code_selector,
+            kernel_data_selector,
+            user_code_selector,
+            user_data_selector,
+            tss_selector
+        },
+        tss: Mutex::new(tss)
+    }
 });
 
-/// Fonction de chargement de la GDT du kernel..
-pub fn init() {
-    use x86_64::instructions::tables::load_tss;
-    use x86_64::instructions::segmentation::{CS, SS, Segment};
-   
-    crate::disp_info!("Load gdt sector 0.");
-    GDT.0.load();
+impl CpuContext for x86_64CpuContext {
+    fn init(&'static self) {
+        use x86_64::instructions::tables::load_tss;
+        use x86_64::instructions::segmentation::{CS, SS, Segment};
 
-    unsafe {
-        crate::disp_info!("Set kernel code and data segments.");
-        CS::set_reg(GDT.1.kernel_code_selector);
-        SS::set_reg(GDT.1.kernel_data_selector);
+        crate::disp_info!("Loading gdt sector 0.");
+        self.gdt.load();
 
-        crate::disp_info!("Load new tss.");
-        load_tss(GDT.1.tss_selector);
+        unsafe {
+            crate::disp_info!("Set kernel code and data segments.");
+            CS::set_reg(self.selectors.kernel_code_selector);
+            SS::set_reg(self.selectors.kernel_data_selector);
+
+            crate::disp_info!("Loading new tss.");
+            load_tss(self.selectors.tss_selector);
+        }
+    }
+
+    fn update_kernel_stack(&self, stack_top: u64) {
+        let mut tss = self.tss.lock();
+        tss.privilege_stack_table[0] = VirtAddr::new(stack_top);
     }
 }

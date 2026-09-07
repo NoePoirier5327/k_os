@@ -6,6 +6,9 @@ pub mod syscalls;
 mod user_mode;
 
 use crate::arch::hal::interrupts::InterruptionController;
+use crate::arch::hal::cpu::CpuContext;
+use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT};
+use crate::vga_buffer;
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
 use multiboot2::MemoryMapTag;
@@ -44,7 +47,7 @@ impl Kernel {
     /// renvoie son instance à la place).
     pub fn init(multiboot2_info_ptr: u64) -> &'static Kernel {
         let physical_memory_offset = 0xFFFF_8000_0000_0000u64;
-        super::vga_buffer::init(physical_memory_offset);
+        vga_buffer::init(physical_memory_offset);
 
         // Vérifications de validitée pour le pointeur multiboot2.
         if multiboot2_info_ptr == 0 {
@@ -100,11 +103,11 @@ impl Kernel {
                 .expect("Failed to initialize kernel's heap.");
         });
 
-        crate::disp_info!("Initialization of the GDT.");
-        crate::arch::x86_64::gdt::init();
+        crate::disp_info!("Initialization of the cpu execution context.");
+        CPU_CONTEXT.init();
 
         crate::disp_info!("Initialization of the interruption controller.");
-        { crate::arch::INTERRUPTION_CONTROLLER.lock().init(); }
+        { INTERRUPTION_CONTROLLER.lock().init(); }
 
         crate::disp_info!("Initialization of the SSE support.");
         unsafe {
