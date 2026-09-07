@@ -3,6 +3,7 @@
 pub mod gdt;
 pub mod interrupts;
 pub mod stack;
+pub mod syscalls;
 
 pub const USER_PAGES_START: u64 = 0x0000_0000_0000_0000u64;
 pub const USER_PAGES_END: u64 = 0x0000_7FFF_FFFF_FFFFu64;

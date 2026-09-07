@@ -2,12 +2,12 @@
 
 mod memory;
 mod allocator;
-pub mod syscalls;
 mod user_mode;
 
 use crate::arch::hal::interrupts::InterruptionController;
 use crate::arch::hal::cpu::CpuContext;
-use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT};
+use crate::arch::hal::syscalls::SyscallInterface;
+use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT, SYSCALL_INTERFACE};
 use crate::vga_buffer;
 use multiboot2::BootInformation;
 use multiboot2::BootInformationHeader;
@@ -130,17 +130,8 @@ impl Kernel {
         crate::disp_info!("Enabling cpu's interruptions.");
         x86_64::instructions::interrupts::enable();
 
-        crate::disp_info!("Enabling syscalls.");
-        unsafe {
-            let selectors = crate::arch::x86_64::gdt::get_selectors();
-
-            syscalls::init_syscalls(
-                selectors.get_kernel_code_selector(),
-                selectors.get_kernel_data_selector(),
-                selectors.get_user_code_selector(),
-                selectors.get_user_data_selector()
-            );
-        };
+        crate::disp_info!("Initialization of the syscall support.");
+        SYSCALL_INTERFACE.init();
 
         KERNEL_INSTANCE.call_once(|| Kernel {
             physical_memory_offset,

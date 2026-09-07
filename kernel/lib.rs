@@ -13,6 +13,7 @@ mod message;
 pub mod vga_buffer;
 pub mod memory;
 pub mod arch;
+pub mod syscall;
 
 use core::panic::PanicInfo;
 use kernel::Kernel;

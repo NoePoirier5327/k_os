@@ -2,3 +2,4 @@
 
 pub mod cpu;
 pub mod user;
+pub mod string;

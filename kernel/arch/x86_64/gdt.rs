@@ -20,11 +20,29 @@ struct Selector {
     pub tss_selector: SegmentSelector
 }
 
+impl Selector {
+    pub fn get_kernel_code_selector(&self) -> SegmentSelector {
+        self.kernel_code_selector
+    }
+
+    pub fn get_kernel_data_selector(&self) -> SegmentSelector {
+        self.kernel_data_selector
+    }
+
+    pub fn get_user_code_selector(&self) -> SegmentSelector {
+        self.user_code_selector
+    }
+
+    pub fn get_user_data_selector(&self) -> SegmentSelector {
+        self.user_data_selector
+    }
+}
+
 /// Rpérésente le contexte d'exécution du processeur x86_64
 #[allow(non_camel_case_types)]
 struct x86_64CpuContext {
     gdt: GlobalDescriptorTable,
-    selectors: Selector,
+    pub selectors: Selector,
     tss: Mutex<TaskStateSegment>
 }
 
