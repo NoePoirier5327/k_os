@@ -7,17 +7,12 @@ pub mod elf;
 
 use process_manager::ProcessManager;
 use thread_manager::ThreadManager;
-use process_manager::process::ProcessKind;
 use scheduler::Scheduler;
-use process_manager::process::PId;
-use thread_manager::thread::TId;
+use process_manager::process::{PId, ProcessKind};
+use thread_manager::thread::{TId, ThreadState};
 use spin::{Once, Mutex};
 use alloc::string::String;
-use crate::arch::x86_64::gdt;
-use crate::arch::x86_64::stack::{KernelStack16Kib, UserStack16Kib, KernelStackAllocator};
 use crate::kernel::Kernel;
-use crate::kernel::syscalls::set_new_syscall_stack;
-use crate::tasker::thread_manager::thread::ThreadState;
 
 /// Unique instance de l'interface de gestion des processus.
 static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
@@ -304,8 +299,10 @@ impl Tasker {
     /// # Return
     /// Pointeur de pile du nouveau thread à s'exécuter.
     pub extern "C" fn handle_switch(old_rsp: u64) -> u64 {
-        use crate::arch::INTERRUPTION_CONTROLLER;
+        use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT, SYSCALL_INTERFACE};
         use crate::arch::hal::interrupts::{InterruptionType, InterruptionController};
+        use crate::arch::hal::cpu::CpuContext;
+        use crate::arch::hal::syscalls::SyscallInterface;
 
         Tasker::on_instance(|tasker| {
             // Sauvegarde du RSP dans le thread sortant
@@ -335,9 +332,11 @@ impl Tasker {
                         unsafe { process.get_address_space().swap_pml4() };
                     }
 
-                    // On met à jour la tss et la pile d'appels système.
-                    gdt::set_tss_rsp0(next_thread.get_kernel_stack_top());
-                    unsafe { set_new_syscall_stack(next_thread.get_kernel_stack_top()); }
+                    // On met à jour la pile d'exécution noyau.
+                    CPU_CONTEXT.update_kernel_stack(next_thread.get_kernel_stack_top());
+
+                    // Puis celle des appels système.
+                    SYSCALL_INTERFACE.update_kernel_stack(next_thread.get_kernel_stack_top());
 
                     return next_thread.rsp;
                 }
