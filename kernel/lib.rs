@@ -54,7 +54,7 @@ pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {
             .expect("An error occured during a user process creation ");
     });
 
-    hlt_loop();
+    arch::hlt_loop();
 }
 
 #[panic_handler]
@@ -68,13 +68,5 @@ fn panic(info: &PanicInfo) -> ! {
     set_default_writer_color();
     println!("]\n{}", info);
 
-    hlt_loop();
-}
-
-/// Fonction d'arrêt du processeur en fonction du processeur.<br>
-// TODO le faire fonctionner pour d'autres architectures que le x86_64.
-fn hlt_loop() -> ! {
-    loop {
-        x86_64::instructions::hlt();
-    }
+    arch::hlt_loop();
 }

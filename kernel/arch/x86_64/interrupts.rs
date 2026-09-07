@@ -217,7 +217,7 @@ extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, e
     println!("Accessed Address: {:?}", Cr2::read());
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
-    crate::hlt_loop();
+    crate::arch::hlt_loop();
 }
 
 /// Fonction de gestion d'interruption inconnue.
