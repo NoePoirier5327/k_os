@@ -10,6 +10,9 @@ pub mod hal;
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::interrupts::PIC_CONTROLLER as INTERRUPTION_CONTROLLER;
 
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::interrupts::without_interrupts;
+
 // Aux contextes d'exécutions
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::gdt::x86_64_CPU_CONTEXT as CPU_CONTEXT;
