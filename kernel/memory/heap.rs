@@ -5,10 +5,9 @@ pub mod bump;
 pub mod linked_list;
 pub mod fixed_size_block;
 
-use x86_64::VirtAddr;
-use x86_64::structures::paging::mapper::MapToError;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB};
 use fixed_size_block::FixedSizeBlockAllocator;
+use crate::memory::types::{InclusivePageRange, Page, PageFlags, VirtAddr, MemoryAllocationError};
+use crate::arch::hal::memory::{FrameAllocator, Mapper};
 
 
 #[global_allocator]
@@ -30,26 +29,26 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
 pub fn init_heap(
-    mapper: &mut impl Mapper<Size4KiB>,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>
-) ->Result<(), MapToError<Size4KiB>> {
+    mapper: &mut dyn Mapper,
+    frame_allocator: &mut dyn FrameAllocator
+) ->Result<(), MemoryAllocationError> {
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
-        let heap_end = heap_start + HEAP_SIZE as u64 - 1u64;
-        let heap_start_page = Page::containing_address(heap_start);
-        let heap_end_page = Page::containing_address(heap_end);
-        Page::range_inclusive(heap_start_page, heap_end_page)
+        let heap_end = heap_start.as_u64() + HEAP_SIZE as u64 - 1u64;
+        let heap_start_page = Page::new(heap_start);
+        let heap_end_page = Page::new(VirtAddr::new(heap_end));
+        InclusivePageRange::new(heap_start_page, heap_end_page)
     };
 
     for page in page_range {
         let frame = frame_allocator
             .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
+            .ok_or(MemoryAllocationError::FrameAllocationFailed)?;
 
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+        let flags = PageFlags::PRESENT | PageFlags::WRITABLE;
 
         unsafe {
-            mapper.map_to(page, frame, flags, frame_allocator)?.flush()
+            mapper.map_to(page, frame, flags, frame_allocator)?
         };
     }
 

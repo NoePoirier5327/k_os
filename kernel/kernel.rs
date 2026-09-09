@@ -1,141 +1,51 @@
 //! Contient le singleton du kernel.
 
-mod memory;
-mod allocator;
-mod user_mode;
-
-use crate::arch::hal::interrupts::InterruptionController;
-use crate::arch::hal::cpu::CpuContext;
-use crate::arch::hal::syscalls::SyscallInterface;
-use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT, SYSCALL_INTERFACE};
-use crate::vga_buffer;
-use multiboot2::BootInformation;
-use multiboot2::BootInformationHeader;
-use multiboot2::MemoryMapTag;
-use spin::Once;
-use spin::Mutex;
-use x86_64::registers::control::Cr3;
-use x86_64::registers::control::Efer;
-use x86_64::registers::control::EferFlags;
-use x86_64::registers::control::{Cr0, Cr0Flags, Cr4, Cr4Flags};
-use x86_64::structures::paging::OffsetPageTable;
-use x86_64::VirtAddr;
-use memory::BootInfoFrameAllocator;
-use x86_64::structures::paging::PageTable;
-use x86_64::structures::paging::PhysFrame;
+use crate::memory::types::PhysAddr;
+use crate::arch::init_kernel_memory;
+use crate::arch::hal::memory::{FrameAllocator, Mapper};
+use crate::arch::without_interrupts;
+use alloc::boxed::Box;
+use spin::{Once, Mutex};
 
 /// Instance global protégée par un OnceLock.
 static KERNEL_INSTANCE: Once<Kernel> = Once::new();
 
 /// Frame allocator du kernel, lui aussi un singleton.
-/// Accessible via with_frame_allocator
-static FRAME_ALLOCATOR: Once<Mutex<BootInfoFrameAllocator>> = Once::new();
+/// Accessible via with_frame_allocator ou on_memory pour avoir le mapper avec.
+static FRAME_ALLOCATOR: Once<Mutex<Box<dyn FrameAllocator + Send>>> = Once::new();
+
+/// Mapper du kernel, aussi un singleton.
+/// Accessible via with_mapper ou on_memory pour avoir le frame_allocator avec.
+static MAPPER: Once<Mutex<Box<dyn Mapper + Send>>> = Once::new();
 
 pub struct Kernel {
-    physical_memory_offset: u64,
-    pml4_frame: PhysFrame,
+    phys_mem_offset: PhysAddr,
 }
 
 impl Kernel {
     /// Instancie le singleton du kernel et renvoie un accès 
     ///
     /// # Argument
+    /// * `physical_memory_offset`: utile à la manipulation de la mémoire du kernel.
     /// * `multiboot2_info_ptr`: Pointeur vers la table d'informations multiboot2
     ///
     /// # Return
     /// Accès vers la nouvelle instance du kernel (si une instance est déjà en train de tourner,
     /// renvoie son instance à la place).
-    pub fn init(multiboot2_info_ptr: u64) -> &'static Kernel {
-        let physical_memory_offset = 0xFFFF_8000_0000_0000u64;
-        vga_buffer::init(physical_memory_offset);
+    pub fn init(physical_memory_offset: u64, multiboot2_info_ptr: u64) -> &'static Kernel {
+        let phys_mem_offset = PhysAddr::new(physical_memory_offset);
+        let (frame_allocator, mapper) = unsafe { init_kernel_memory(phys_mem_offset, multiboot2_info_ptr) };
 
-        // Vérifications de validitée pour le pointeur multiboot2.
-        if multiboot2_info_ptr == 0 {
-            panic!("The multiboot2 information pointer is null.");
-        }
-
-        if !multiboot2_info_ptr.is_multiple_of(8) {
-            crate::disp_warning!("Unaligned multiboot2 information pointer.");
-        }
-
-        crate::disp_info!("Enabling no-execute (NX) bit support.");
-        unsafe {
-            let mut efer = Efer::read();
-            efer.insert(EferFlags::NO_EXECUTE_ENABLE);
-            Efer::write(efer);
-        }
-
-        crate::disp_info!("Copying kernel pml4 frame.");
-        let (pml4_frame, _)= Cr3::read();
-
-        crate::disp_info!("Initialization of the kernel frame allocator");
-        FRAME_ALLOCATOR.call_once(|| 
-            Mutex::new(
-            {
-                let boot_info = unsafe {
-                BootInformation::load((multiboot2_info_ptr + physical_memory_offset) as *const BootInformationHeader)
-                    .expect("Failed to load multiboot2 boot information.")
-                };
-
-                let memory_map_tag = unsafe {
-                    let tag = boot_info.memory_map_tag().expect("The memory map tag is required.");
-                    &*(tag as *const MemoryMapTag)
-                };
-
-                unsafe {
-                    BootInfoFrameAllocator::init(memory_map_tag)
-                }
-            }
-            )
-        );
-
-        let mut mapper = unsafe {
-            let virt_mem_offset = VirtAddr::new(physical_memory_offset);
-            let phys_frame = pml4_frame.start_address();
-            let virt_frame = virt_mem_offset + phys_frame.as_u64();
-            let page_table_ptr: *mut PageTable = virt_frame.as_mut_ptr();
-            OffsetPageTable::new(&mut *page_table_ptr, virt_mem_offset)
-        };
-
-        crate::disp_info!("Initialization of the kernel heap.");
-        Kernel::with_frame_allocator(|frame_allocator| {
-            allocator::init_heap(&mut mapper, frame_allocator)
-                .expect("Failed to initialize kernel's heap.");
+        FRAME_ALLOCATOR.call_once(|| {
+            Mutex::new(Box::new(frame_allocator))
         });
 
-        crate::disp_info!("Initialization of the cpu execution context.");
-        CPU_CONTEXT.init();
-
-        crate::disp_info!("Initialization of the interruption controller.");
-        { INTERRUPTION_CONTROLLER.lock().init(); }
-
-        crate::disp_info!("Initialization of the SSE support.");
-        unsafe {
-            // On active FXSAVE/FXRSTOR et les exceptions SIMD dans CR4
-            let mut cr4 = Cr4::read();
-            cr4.insert(Cr4Flags::OSFXSR);
-            cr4.insert(Cr4Flags::OSXMMEXCPT_ENABLE);
-            Cr4::write(cr4);
-
-            // On s'assure que la copie du coprocesseur est désactivée et le monitoring activé dans CR0
-            let mut cr0 = Cr0::read();
-            cr0.remove(Cr0Flags::EMULATE_COPROCESSOR); // Effacer EM
-            cr0.insert(Cr0Flags::MONITOR_COPROCESSOR); // Définir MP
-            Cr0::write(cr0);
-        }
-
-        crate::disp_info!("Initialization of the tasker.");
-        crate::tasker::Tasker::init();
-
-        crate::disp_info!("Enabling cpu's interruptions.");
-        x86_64::instructions::interrupts::enable();
-
-        crate::disp_info!("Initialization of the syscall support.");
-        SYSCALL_INTERFACE.init();
+        MAPPER.call_once(|| {
+            Mutex::new(Box::new(mapper))
+        });
 
         KERNEL_INSTANCE.call_once(|| Kernel {
-            physical_memory_offset,
-            pml4_frame,
+            phys_mem_offset,
         })
     }
 
@@ -148,34 +58,56 @@ impl Kernel {
     }
 
     /// Accesseur vers l'offset de la mémoire physique.
-    pub fn physical_memory_offset(&self) -> u64 {
-        self.physical_memory_offset
+    pub fn get_phys_mem_offset(&self) -> PhysAddr {
+        self.phys_mem_offset
     }
 
-    /// Créer à la demande un mapper kernel dans le higher half.
-    pub fn mapper(&self) -> OffsetPageTable<'static> {
-        unsafe {
-            let virt_mem_offset = VirtAddr::new(self.physical_memory_offset);
-            let phys_frame = self.pml4_frame.start_address();
-            let virt_frame = virt_mem_offset + phys_frame.as_u64();
-            let page_table_ptr: *mut PageTable = virt_frame.as_mut_ptr();
-            OffsetPageTable::new(&mut *page_table_ptr, virt_mem_offset)
-        }
-    }
-
-    /// Renvoie le cadre physique dans lequel est contenu la pml4 noyau.
-    pub fn get_pml4_frame(&self) -> PhysFrame {
-        self.pml4_frame
-    }
-
-    /// Accesseur de l'instance du frame allocator kernel.
+    /// Accesseur de l'instance du frame allocator.
     /// Gère le temps de validité du mutex interne.
-    /// Empêche les interruptions durant l'utilisation du frame_allocator.
-    pub fn with_frame_allocator<R>(f: impl FnOnce(&mut BootInfoFrameAllocator) -> R) -> R {
+    /// Empêche les interruptions durant l'appel.
+    pub fn with_frame_allocator<R>(f: impl FnOnce(&mut dyn FrameAllocator) -> R) -> R {
         let frame_allocator = FRAME_ALLOCATOR
             .get()
-            .expect("The kernel frame allocator is not initialized.");
+            .expect("The frame allocator is not initialized.");
 
-        x86_64::instructions::interrupts::without_interrupts(|| f(&mut frame_allocator.lock()))
+        without_interrupts(|| {
+            let mut guard = frame_allocator.lock();
+            f(&mut **guard)
+        })
+    }
+
+    /// Accesseur de l'instance du mapper kernel.
+    /// Gère les temps de validité du mutex interne.
+    /// Empêche les interruptions durant l'appel.
+    pub fn with_mapper<R>(f: impl FnOnce(&mut dyn Mapper) -> R) -> R {
+        let mapper = MAPPER
+            .get()
+            .expect("The kernel mapper is not initialized.");
+
+        without_interrupts(|| {
+            let mut guard = mapper.lock();
+            f(&mut **guard)
+        })
+    }
+
+    /// Accesseur du frame allocator et du mapper en même temps.
+    /// Gère leurs temps de validité.
+    /// Empêche les interruptions durant l'appel.
+    pub fn with_memory<R>(
+        f: impl FnOnce(&mut dyn FrameAllocator, &mut dyn Mapper) -> R
+    ) -> R {
+        let frame_allocator = FRAME_ALLOCATOR
+            .get()
+            .expect("The frame allocator is not initialized.");
+
+        let mapper = MAPPER
+            .get()
+            .expect("The kernel mapper is not initialized.");
+
+        without_interrupts(|| {
+            let mut allocator_guard = frame_allocator.lock();
+            let mut mapper_guard = mapper.lock();
+            f(&mut **allocator_guard, &mut **mapper_guard)
+        })
     }
 }

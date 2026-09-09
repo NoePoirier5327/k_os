@@ -31,7 +31,7 @@ use x86_64::{
 
 use multiboot2::{BootInformation, BootInformationHeader, MemoryAreaType, MemoryMapTag};
 use crate::arch::hal::memory::{FrameAllocator, Mapper};
-use crate::memory::types::{Page, PageFlags, PhysAddr, PhysFrame, VirtAddr};
+use crate::memory::types::{MemoryAllocationError, Page, PageFlags, PhysAddr, PhysFrame, VirtAddr};
 use crate::kernel::Kernel;
 
 // Adresses de début et fin du kernel.
@@ -114,9 +114,10 @@ fn new_user_pml4(phys_mem_offset: PhysAddr) -> X86_64PhysFrame {
 
     // On alloue la nouvelle pml4
     let new_pml4_frame = Kernel::with_frame_allocator(|frame_allocator| {
-        frame_allocator
+        let frame = frame_allocator
             .allocate_frame()
-            .expect("No more memory left to allocate user's pml4.")
+            .expect("No more memory left to allocate user's pml4.");
+        X86_64PhysFrame::containing_address(X86_64PhysAddr::new(frame.get_start_address().as_u64()))
     });
 
     let new_pml4: &mut X86_64PageTable = unsafe {
@@ -315,7 +316,7 @@ impl<'a> Mapper for X86_64Mapper<'a> {
         frame: PhysFrame,
         flags: PageFlags,
         frame_allocator: &mut dyn FrameAllocator
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), MemoryAllocationError> {
         // On récupère les accès à la mémoire sous le format x86_64 de la crate du même nom.
         let x86_64_page: X86_64Page<Size4KiB> = X86_64Page::containing_address(X86_64VirtAddr::new(page.get_start_address().as_u64()));
         let x86_64_frame = X86_64PhysFrame::containing_address(X86_64PhysAddr::new(frame.get_start_address().as_u64()));
@@ -333,7 +334,7 @@ impl<'a> Mapper for X86_64Mapper<'a> {
         // On appelle l'offset page table interne pour le mappage
         self.x86_64_mapper
             .map_to(x86_64_page, x86_64_frame, x86_64_page_flags, &mut x86_64_frame_allocator)
-            .map_err(|_| "Mapping failed.")?
+            .map_err(|_| MemoryAllocationError::MappingFailed)?
             .flush();
         
         Ok(())

@@ -69,6 +69,63 @@ impl Page {
     }
 }
 
+/// Structure de gestion de plage de page, la dernière page est inclue dans l'itérateur.
+#[derive(Debug, Clone, Copy)]
+pub struct InclusivePageRange {
+    start: Page,
+    end: Page
+}
+
+impl InclusivePageRange {
+    pub fn new(start: Page, end: Page) -> Self {
+        Self {
+            start,
+            end
+        }
+    }
+}
+
+impl core::iter::IntoIterator for InclusivePageRange {
+    type Item = Page;
+    type IntoIter = InclusivePageRangeIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        InclusivePageRangeIterator {
+            current: self.start,
+            end: self.end,
+            finished: false
+        }
+    }
+}
+
+/// Itérateur pour le type InclusivePageRange.
+struct InclusivePageRangeIterator {
+    current: Page,
+    end: Page,
+    finished: bool
+}
+
+impl Iterator for InclusivePageRangeIterator {
+    type Item = Page;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished {
+            return None
+        }
+
+        let page = self.current;
+
+        if page == self.end {
+            self.finished = true;
+        } else {
+            let next_vaddr = VirtAddr::new(page.get_start_address().as_u64() + PAGE_SIZE as u64);
+            self.current = Page::new(next_vaddr);
+        }
+
+        Some(page)
+    }
+}
+
 bitflags::bitflags! {
     /// Drapeaux de droits de page courante.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,4 +135,11 @@ bitflags::bitflags! {
         const USER_ACCESSIBLE = 1 << 2;
         const NO_EXEC         = 1 << 3;
     }
+}
+
+/// Format d'erreur dédié à l'allocation
+#[derive(Debug)]
+pub enum MemoryAllocationError {
+    FrameAllocationFailed,
+    MappingFailed
 }

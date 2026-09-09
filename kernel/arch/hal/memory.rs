@@ -1,6 +1,6 @@
 //! Module de gestion des allocations mémoires globales.
 
-use crate::memory::types::{PhysFrame, PhysAddr, Page, PageFlags, VirtAddr};
+use crate::memory::types::{PhysFrame, PhysAddr, Page, PageFlags, VirtAddr, MemoryAllocationError};
 
 /// Frame allocator global indépendant du matériel cible.
 pub trait FrameAllocator {
@@ -25,7 +25,7 @@ pub trait Mapper {
         frame: PhysFrame,
         flags: PageFlags,
         allocator: &mut dyn FrameAllocator
-    ) -> Result<(), &'static str>;
+    ) -> Result<(), MemoryAllocationError>;
 
     /// Supprime le mappage de la page en paramètre et renvoie son cadre physique.
     /// Si quelconque erreur, renvoie un message d'erreur.
