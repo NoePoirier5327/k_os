@@ -2,10 +2,33 @@
 
 use alloc::vec::Vec;
 use spin::Lazy;
-use x86_64::structures::paging::{FrameAllocator as X86_64FrameAllocatorTrait, Mapper as X86_64MapperTrait, Page as X86_64Page, PageTable as X86_64PageTable, PageTableFlags as X86_64PageFlags, PhysFrame as X86_64PhysFrame, Size4KiB, Translate};
-use x86_64::registers::control::Cr3;
-use x86_64::{VirtAddr as X86_64VirtAddr, PhysAddr as X86_64PhysAddr};
-use x86_64::structures::paging::OffsetPageTable;
+use x86_64::structures::paging::{
+    FrameAllocator as X86_64FrameAllocatorTrait,
+    Mapper as X86_64MapperTrait,
+    Page as X86_64Page,
+    PageTable as X86_64PageTable,
+    PageTableFlags as X86_64PageFlags,
+    PhysFrame as X86_64PhysFrame,
+    Size4KiB,
+    Translate,
+    OffsetPageTable,
+};
+use x86_64::registers::model_specific::{
+    Efer,
+    EferFlags
+};
+use x86_64::registers::control::{
+    Cr0,
+    Cr0Flags,
+    Cr3,
+    Cr4,
+    Cr4Flags
+};
+use x86_64::{
+    VirtAddr as X86_64VirtAddr,
+    PhysAddr as X86_64PhysAddr
+};
+
 use multiboot2::{BootInformation, BootInformationHeader, MemoryAreaType, MemoryMapTag};
 use crate::arch::hal::memory::{FrameAllocator, Mapper};
 use crate::memory::types::{Page, PageFlags, PhysAddr, PhysFrame, VirtAddr};
@@ -24,7 +47,8 @@ const INITIAL_KERNEL_PML4: Lazy<X86_64PhysFrame> = Lazy::new(|| {
     pml4
 });
 
-/// Initialise et renvoie un couple (frame_allocator/mapper) dédié au kernel.
+/// Initialise les composantes mémoire spécifique à l'architecture x86_64
+/// et renvoie un couple (frame_allocator/mapper) dédié au kernel.
 ///
 /// # Safety
 /// Ne doit être appelé qu'au démarrage du kernel.
@@ -32,6 +56,28 @@ pub unsafe fn init_kernel_memory(
     phys_mem_offset: PhysAddr,
     boot_info_ptr: u64
 ) -> (X86_64FrameAllocator, X86_64Mapper<'static>) {
+    crate::disp_info!("Enabling no-execute (NX) bit support.");
+    unsafe {
+        let mut efer = Efer::read();
+        efer.insert(EferFlags::NO_EXECUTE_ENABLE);
+        Efer::write(efer);
+    }
+
+    crate::disp_info!("Initialization of the SSE support.");
+    unsafe {
+        // On active FXSAVE/FXRSTOR et les exceptions SIMD dans CR4
+        let mut cr4 = Cr4::read();
+        cr4.insert(Cr4Flags::OSFXSR);
+        cr4.insert(Cr4Flags::OSXMMEXCPT_ENABLE);
+        Cr4::write(cr4);
+
+        // On s'assure que la copie du coprocesseur est désactivée et le monitoring activé dans CR0
+        let mut cr0 = Cr0::read();
+        cr0.remove(Cr0Flags::EMULATE_COPROCESSOR); // Effacer EM
+        cr0.insert(Cr0Flags::MONITOR_COPROCESSOR); // Définir MP
+        Cr0::write(cr0);
+    }
+
     crate::disp_info!("Loading multiboot2 information pointer.");
     let boot_info = BootInformation::load((boot_info_ptr + phys_mem_offset.as_u64()) as *const BootInformationHeader)
         .expect("Failed to load multiboot2 information pointer.");
