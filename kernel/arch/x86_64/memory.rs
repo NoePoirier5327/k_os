@@ -343,13 +343,13 @@ impl<'a> Mapper for X86_64Mapper<'a> {
     unsafe fn unmap(
         &mut self,
         page: Page,
-    ) -> Result<PhysFrame, &'static str> {
+    ) -> Result<PhysFrame, MemoryAllocationError> {
         // On convertit la page générique en paramètre en page x86_64.
         let x86_64_page: X86_64Page<Size4KiB> = X86_64Page::containing_address(X86_64VirtAddr::new(page.get_start_address().as_u64()));
 
         // On appelle le mapper interne démapper la page en paramètre.
         let (phys_frame, mapper_flush) = self.x86_64_mapper.unmap(x86_64_page)
-            .map_err(|_| "Unmapping failed.")?;
+            .map_err(|_| MemoryAllocationError::UnmappingFailed)?;
 
         // Si aucune erreur, on le signale.
         mapper_flush.flush();

@@ -35,7 +35,7 @@ pub trait Mapper {
     unsafe fn unmap(
         &mut self,
         page: Page
-    ) -> Result<PhysFrame, &'static str>;
+    ) -> Result<PhysFrame, MemoryAllocationError>;
 
     /// Traduit l'adresse virtuelle en paramètre en adresse physique.
     fn translate(

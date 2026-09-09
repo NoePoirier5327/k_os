@@ -141,5 +141,8 @@ bitflags::bitflags! {
 #[derive(Debug)]
 pub enum MemoryAllocationError {
     FrameAllocationFailed,
-    MappingFailed
+    MappingFailed,
+    UnmappingFailed,
+    UnalignedAddress,
+    OutOfMemory
 }
