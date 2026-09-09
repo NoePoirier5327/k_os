@@ -19,4 +19,7 @@ pub trait InterruptionController {
 
     /// Marque la fin de l'interruption en paramètre.
     fn end_of_interrupt(&mut self, i_type: InterruptionType);
+
+    /// Désactive les interruptions pour l'exécution de la fonction en paramètre.
+    fn without_interrupts<R>(f: impl FnOnce() -> R) -> R;
 }

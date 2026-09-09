@@ -79,6 +79,10 @@ impl InterruptionController for PicController {
             self.pics.notify_end_of_interrupt(irq);
         }
     }
+
+    fn without_interrupts<R>(f: impl FnOnce() -> R) -> R {
+        x86_64::instructions::interrupts::without_interrupts(|| f())
+    }
 }
 
 impl InterruptionType {
