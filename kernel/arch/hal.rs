@@ -3,3 +3,4 @@
 pub mod interrupts;
 pub mod cpu;
 pub mod syscalls;
+pub mod memory;

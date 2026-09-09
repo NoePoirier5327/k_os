@@ -18,6 +18,10 @@ pub use x86_64::gdt::x86_64_CPU_CONTEXT as CPU_CONTEXT;
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::syscalls::x86_64_SYSCALL_INTERFACE as SYSCALL_INTERFACE;
 
+// Aux fonctions génériques de la mémoire.
+#[cfg(target_arch = "x86_64")]
+pub use x86_64::memory::{new_user_mapper, init_kernel_memory};
+
 /// Détecte et renvoie l'architecture courante.
 pub const CURRENT_ARCH: ArchType = 
     if cfg!(target_arch = "x86_64") { ArchType::x86_64 }
