@@ -15,7 +15,7 @@ pub use x86_64::interrupts::without_interrupts;
 
 // Aux contextes d'exécutions
 #[cfg(target_arch = "x86_64")]
-pub use x86_64::gdt::x86_64_CPU_CONTEXT as CPU_CONTEXT;
+pub use x86_64::gdt::X86_64CPU_CONTEXT_INTERFACE as CPU_CONTEXT;
 
 // Aux interfaces d'appels systèmes
 #[cfg(target_arch = "x86_64")]

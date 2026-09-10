@@ -39,15 +39,13 @@ impl Selector {
 }
 
 /// Rpérésente le contexte d'exécution du processeur x86_64
-#[allow(non_camel_case_types)]
-struct x86_64_CpuContext {
+struct X86_64CpuContext {
     gdt: GlobalDescriptorTable,
     pub selectors: Selector,
     tss: Mutex<TaskStateSegment>
 }
 
-#[allow(non_upper_case_globals)]
-pub static x86_64_CPU_CONTEXT: Lazy<x86_64_CpuContext> = Lazy::new(|| {
+pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
 
     // Pile saine utilisée lors de Double Fault
@@ -77,7 +75,7 @@ pub static x86_64_CPU_CONTEXT: Lazy<x86_64_CpuContext> = Lazy::new(|| {
         core::mem::transmute::<&TaskStateSegment, &'static TaskStateSegment>(&tss)
     }));
 
-    x86_64_CpuContext { 
+    X86_64CpuContext { 
         gdt,
         selectors: Selector {
             kernel_code_selector,
@@ -90,7 +88,7 @@ pub static x86_64_CPU_CONTEXT: Lazy<x86_64_CpuContext> = Lazy::new(|| {
     }
 });
 
-impl CpuContext for x86_64_CpuContext {
+impl CpuContext for X86_64CpuContext {
     fn init(&'static self) {
         use x86_64::instructions::tables::load_tss;
         use x86_64::instructions::segmentation::{CS, SS, Segment};
