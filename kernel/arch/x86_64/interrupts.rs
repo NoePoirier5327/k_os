@@ -325,7 +325,7 @@ impl GenericInterruptionStackFrame for X86_64InterruptionStackFrame {
     /// De même pour exec_entry_point.
     unsafe fn new_kernel(
         kernel_stack_top: VirtAddr,
-        exec_entry_point: VirtAddr,
+        exec_entry_point: u64,
     ) -> VirtAddr {
         // On récupère les segments de données kernel.
         let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
@@ -345,7 +345,7 @@ impl GenericInterruptionStackFrame for X86_64InterruptionStackFrame {
             cs: kernel_cs,
             ss: kernel_ss,
             rsp: kernel_stack_top.as_u64(),
-            rip: exec_entry_point.as_u64(),
+            rip: exec_entry_point,
             rflags: 0x202,
 
             // Registres d'exécutions initiaux.
@@ -367,7 +367,7 @@ impl GenericInterruptionStackFrame for X86_64InterruptionStackFrame {
     unsafe fn new_user(
         user_stack_top: VirtAddr,
         kernel_stack_top: VirtAddr,
-        exec_entry_point: VirtAddr
+        exec_entry_point: u64
     ) -> VirtAddr {
         // Récuperation des segments accessible à l'utilisateur.
         let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
@@ -387,7 +387,7 @@ impl GenericInterruptionStackFrame for X86_64InterruptionStackFrame {
             cs: user_cs,
             ss: user_ss,
             rsp: user_stack_top.as_u64(),
-            rip: exec_entry_point.as_u64(),
+            rip: exec_entry_point,
             rflags: 0x202,
 
             // Registres d'exécutions initiaux.

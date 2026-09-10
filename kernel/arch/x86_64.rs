@@ -2,7 +2,6 @@
 
 pub mod gdt;
 pub mod interrupts;
-pub mod stack;
 pub mod syscalls;
 pub mod memory;
 
