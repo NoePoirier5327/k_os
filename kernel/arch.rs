@@ -13,12 +13,6 @@ pub use x86_64::interrupts::PIC_CONTROLLER as INTERRUPTION_CONTROLLER;
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::interrupts::without_interrupts;
 
-#[cfg(target_arch = "x86_64")]
-pub use x86_64::interrupts::new_kernel_stack_frame;
-
-#[cfg(target_arch = "x86_64")]
-pub use x86_64::interrupts::new_user_stack_frame;
-
 // Aux contextes d'exécutions
 #[cfg(target_arch = "x86_64")]
 pub use x86_64::gdt::X86_64CPU_CONTEXT_INTERFACE as CPU_CONTEXT;

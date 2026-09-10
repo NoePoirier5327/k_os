@@ -317,88 +317,86 @@ struct X86_64InterruptionStackFrame {
 
 /// Pour l'export du type générique.
 impl GenericInterruptionStackFrame for X86_64InterruptionStackFrame {
+    /// Interface de création de stack frame kernel.
+    /// Renvoie la nouvelle adresse du registre rsp.
+    ///
+    /// # Safety
+    /// L'appelant doit assurer que le kernel_stack_top pointe vers une pile saine et accessible.
+    /// De même pour exec_entry_point.
+    unsafe fn new_kernel(
+        kernel_stack_top: VirtAddr,
+        exec_entry_point: VirtAddr,
+    ) -> VirtAddr {
+        // On récupère les segments de données kernel.
+        let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
+        let kernel_cs = selectors.get_kernel_code_selector().0 as u64;
+        let kernel_ss = selectors.get_kernel_data_selector().0 as u64;
 
-}
-
-/// Interface de création de stack frame kernel.
-/// Renvoie la nouvelle adresse du registre rsp.
-///
-/// # Safety
-/// L'appelant doit assurer que le kernel_stack_top pointe vers une pile saine et accessible.
-/// De même pour exec_entry_point.
-pub unsafe fn new_kernel_stack_frame(
-    kernel_stack_top: VirtAddr,
-    exec_entry_point: VirtAddr,
-) -> VirtAddr {
-    // On récupère les segments de données kernel.
-    let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
-    let kernel_cs = selectors.get_kernel_code_selector().0 as u64;
-    let kernel_ss = selectors.get_kernel_data_selector().0 as u64;
-
-    // On détermine la taille de la stack frame.
-    let stack_frame_size = core::mem::size_of::<X86_64InterruptionStackFrame>() as u64;
+        // On détermine la taille de la stack frame.
+        let stack_frame_size = core::mem::size_of::<X86_64InterruptionStackFrame>() as u64;
     
-    // Puis l'instancie sous forme de pointeur.
-    let stack_top = VirtAddr::new(kernel_stack_top.as_u64() - stack_frame_size);
+        // Puis l'instancie sous forme de pointeur.
+        let stack_top = VirtAddr::new(kernel_stack_top.as_u64() - stack_frame_size);
 
-    // On aligne la frame initiale sur la stack_top.
-    let stack_frame_ptr = &mut *(stack_top.as_u64() as *mut X86_64InterruptionStackFrame);
-    *stack_frame_ptr = X86_64InterruptionStackFrame {
-        // Normalement obtenus par iretq.
-        cs: kernel_cs,
-        ss: kernel_ss,
-        rsp: kernel_stack_top.as_u64(),
-        rip: exec_entry_point.as_u64(),
-        rflags: 0x202,
+        // On aligne la frame initiale sur la stack_top.
+        let stack_frame_ptr = &mut *(stack_top.as_u64() as *mut X86_64InterruptionStackFrame);
+        *stack_frame_ptr = X86_64InterruptionStackFrame {
+            // Normalement obtenus par iretq.
+            cs: kernel_cs,
+            ss: kernel_ss,
+            rsp: kernel_stack_top.as_u64(),
+            rip: exec_entry_point.as_u64(),
+            rflags: 0x202,
 
-        // Registres d'exécutions initiaux.
-        rax: 0, rbx: 0, rcx: 0, rdx: 0,
-        rsi: 0, rdi: 0, rbp: 0, r8: 0,
-        r9: 0, r10: 0, r11: 0, r12: 0,
-        r13: 0, r14: 0, r15: 0
-    };
+            // Registres d'exécutions initiaux.
+            rax: 0, rbx: 0, rcx: 0, rdx: 0,
+            rsi: 0, rdi: 0, rbp: 0, r8: 0,
+            r9: 0, r10: 0, r11: 0, r12: 0,
+            r13: 0, r14: 0, r15: 0
+        };
 
-    stack_top
-}
+        stack_top
+    }
 
-/// Interface de création de stack_frame utilisateur.
-/// Renvoie la nouvelle adresse pour le registre rsp.
-///
-/// # Safety
-/// L'appelant doit assurer que le kernel_stack_top pointe vers une pile saine et accessible.
-/// De même pour user_stack_top et exec_entry_point.
-pub unsafe fn new_user_stack_frame(
-    user_stack_top: VirtAddr,
-    kernel_stack_top: VirtAddr,
-    exec_entry_point: VirtAddr
-) -> VirtAddr {
-    // Récuperation des segments accessible à l'utilisateur.
-    let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
-    let user_cs = selectors.get_user_code_selector().0 as u64;
-    let user_ss = selectors.get_user_data_selector().0 as u64;
+    /// Interface de création de stack_frame utilisateur.
+    /// Renvoie la nouvelle adresse pour le registre rsp.
+    ///
+    /// # Safety
+    /// L'appelant doit assurer que le kernel_stack_top pointe vers une pile saine et accessible.
+    /// De même pour user_stack_top et exec_entry_point.
+    unsafe fn new_user(
+        user_stack_top: VirtAddr,
+        kernel_stack_top: VirtAddr,
+        exec_entry_point: VirtAddr
+    ) -> VirtAddr {
+        // Récuperation des segments accessible à l'utilisateur.
+        let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
+        let user_cs = selectors.get_user_code_selector().0 as u64;
+        let user_ss = selectors.get_user_data_selector().0 as u64;
 
-    // On calcul la taille de la stack frame en mémoire.
-    let stack_frame_size = core::mem::size_of::<X86_64InterruptionStackFrame>() as u64;
+        // On calcul la taille de la stack frame en mémoire.
+        let stack_frame_size = core::mem::size_of::<X86_64InterruptionStackFrame>() as u64;
 
-    // On créer détermine l'adresse du pointeur vers la nouvelle stack frame.
-    let stack_top = VirtAddr::new(kernel_stack_top.as_u64() - stack_frame_size);
+        // On créer détermine l'adresse du pointeur vers la nouvelle stack frame.
+        let stack_top = VirtAddr::new(kernel_stack_top.as_u64() - stack_frame_size);
 
-    // On instancie la frame initiale qu'on aligne sur la stack_top.
-    let stack_frame_ptr = &mut *(stack_top.as_u64() as *mut X86_64InterruptionStackFrame);
-    *stack_frame_ptr = X86_64InterruptionStackFrame {
-        // Normalement obtenus par iretq.
-        cs: user_cs,
-        ss: user_ss,
-        rsp: user_stack_top.as_u64(),
-        rip: exec_entry_point.as_u64(),
-        rflags: 0x202,
+        // On instancie la frame initiale qu'on aligne sur la stack_top.
+        let stack_frame_ptr = &mut *(stack_top.as_u64() as *mut X86_64InterruptionStackFrame);
+        *stack_frame_ptr = X86_64InterruptionStackFrame {
+            // Normalement obtenus par iretq.
+            cs: user_cs,
+            ss: user_ss,
+            rsp: user_stack_top.as_u64(),
+            rip: exec_entry_point.as_u64(),
+            rflags: 0x202,
 
-        // Registres d'exécutions initiaux.
-        rax: 0, rbx: 0, rcx: 0, rdx: 0,
-        rsi: 0, rdi: 0, rbp: 0, r8:  0,
-        r9:  0, r10: 0, r11: 0, r12: 0, 
-        r13: 0, r14: 0, r15: 0
-    };
+            // Registres d'exécutions initiaux.
+            rax: 0, rbx: 0, rcx: 0, rdx: 0,
+            rsi: 0, rdi: 0, rbp: 0, r8:  0,
+            r9:  0, r10: 0, r11: 0, r12: 0, 
+            r13: 0, r14: 0, r15: 0
+        };
 
-    stack_top
+        stack_top
+    }
 }
