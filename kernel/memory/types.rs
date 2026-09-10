@@ -95,6 +95,14 @@ impl InclusivePageRange {
             end
         }
     }
+
+    pub fn get_start_page(&self) -> Page {
+        self.start
+    }
+
+    pub fn get_end_page(&self) -> Page {
+        self.end
+    }
 }
 
 impl core::iter::IntoIterator for InclusivePageRange {
@@ -115,6 +123,16 @@ pub struct InclusivePageRangeIterator {
     current: Page,
     end: Page,
     finished: bool
+}
+
+impl InclusivePageRangeIterator {
+    pub fn get_current_page(&self) -> Page {
+        self.current
+    }
+
+    pub fn get_end_page(&self) -> Page {
+        self.end
+    }
 }
 
 impl Iterator for InclusivePageRangeIterator {
