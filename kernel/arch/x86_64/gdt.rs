@@ -13,11 +13,11 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 /// Gère les sélecteurs de segments x86_64.
 #[derive(Debug, Clone, Copy)]
 struct Selector {
-    pub kernel_code_selector: SegmentSelector,
-    pub kernel_data_selector: SegmentSelector,
-    pub user_code_selector: SegmentSelector,
-    pub user_data_selector: SegmentSelector,
-    pub tss_selector: SegmentSelector
+    kernel_code_selector: SegmentSelector,
+    kernel_data_selector: SegmentSelector,
+    user_code_selector: SegmentSelector,
+    user_data_selector: SegmentSelector,
+    tss_selector: SegmentSelector
 }
 
 impl Selector {
@@ -41,8 +41,14 @@ impl Selector {
 /// Rpérésente le contexte d'exécution du processeur x86_64
 struct X86_64CpuContext {
     gdt: GlobalDescriptorTable,
-    pub selectors: Selector,
+    selectors: Selector,
     tss: Mutex<TaskStateSegment>
+}
+
+impl X86_64CpuContext {
+    pub fn get_selectors(&self) -> Selector {
+        self.selectors
+    }
 }
 
 pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
