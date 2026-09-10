@@ -20,3 +20,7 @@ pub trait InterruptionController {
     /// Marque la fin de l'interruption en paramètre.
     fn end_of_interrupt(&mut self, i_type: InterruptionType);
 }
+
+/// Interface générique de récuperation de contexte d'exécution à chaque interruption timer.
+/// Utile pour le multiprocess.
+pub trait InterruptionStackFrame {}
