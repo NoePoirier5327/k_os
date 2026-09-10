@@ -12,7 +12,9 @@ use process_manager::process::{PId, ProcessKind};
 use thread_manager::thread::{TId, ThreadState};
 use spin::{Once, Mutex};
 use alloc::string::String;
-use crate::kernel::Kernel;
+use crate::arch::without_interrupts;
+use crate::memory::stack::{KernelStackAllocator, KernelStack16Kib};
+use crate::memory::types::VirtAddr;
 
 /// Unique instance de l'interface de gestion des processus.
 static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
@@ -46,7 +48,7 @@ impl Tasker {
     /// Desactive les interruptions le temps de la commande.
     pub fn on_instance<R>(f: impl FnOnce(&mut Tasker) -> R) -> R {
         let tasking = TASKER_INSTANCE.get().expect("Tasking not initialized.");
-        x86_64::instructions::interrupts::without_interrupts(|| f(&mut tasking.lock()))
+        without_interrupts(|| f(&mut tasking.lock()))
     }
 
     /// Créer un nouveau processus kernel et renvoie son identifiant.
@@ -63,13 +65,12 @@ impl Tasker {
         let pid = self.process_manager.create_kernel_process(name);
 
         // On alloue la nouvelle pile du thread enfant au nouveau processus.
-        let mut kernel_mapper = Kernel::on_instance().mapper();
         let top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, top_vaddr) } {
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
                 self.kernel_stack_allocator.deallocate_top(top_vaddr);
-                return Err(e);
+                panic!("{:?}", e);
             }
         };
 
@@ -90,47 +91,38 @@ impl Tasker {
     ///
     /// # Arguments
     /// * `name`: nom du nouveau processus.
+    /// * `user_stack_top`: haut de la pile utilisateur allouée au nouveau processus.
+    /// * `user_stack_size`: taille de la pile utilisateur allouée au nouveau processus.
     /// * `elf_bytes`: contenu de l'executable binaire sur lequel lancer le nouveau thread.
     pub fn create_user_process(
         &mut self,
         name: impl Into<String>,
+        user_stack_top: VirtAddr,
+        user_stack_size: usize,
         elf_bytes: &[u8],
-        ) -> TaskerResult<PId> {
+    ) -> TaskerResult<PId> {
         // On alloue un nouveau processus.
         let pid = self.process_manager.create_user_process(name);
         let process = self.process_manager.get_mut(pid)?;
 
         // On créer le mapper utilisateur associé au nouveau processus.
-        let mut user_mapper = unsafe { process.get_address_space().mapper() };
+        let user_mapper = process.get_user_mapper()?;
 
         // On parse le binaire elf en entrée.
-        let entry_point = unsafe { elf::load_elf(elf_bytes, &mut user_mapper) };
+        let entry_point = unsafe { elf::load_elf(elf_bytes, user_mapper) };
 
         // On alloue la pile kernel du thread enfant.
-        let mut kernel_mapper = Kernel::on_instance().mapper();
         let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
                 self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
-                return Err(e)
-            }
-        };
-
-        // On alloue le haut de pile pour le nouveau thread utilisateur.
-        let user_top_vaddr = process.allocate_top_vaddr()?;
-
-        // On alloue la pile utilisateur du thread enfant.
-        let user_stack = match unsafe { UserStack16Kib::allocate(&mut user_mapper, user_top_vaddr) } {
-            Ok(stack) => stack,
-            Err(e) => {
-                process.deallocate_top_vaddr(user_top_vaddr).ok();
-                return Err(e)
+                panic!("{:?}", e);
             }
         };
 
         // On alloue le thread enfant
-        let tid = self.thread_manager.create_user_thread(pid, entry_point.as_u64(), user_stack, kernel_stack);
+        let tid = self.thread_manager.create_user_thread(pid, entry_point.as_u64(), user_stack_top, kernel_stack);
 
         // On l'ajoute à l'ordonnanceur et à son processus parent.
         self.scheduler.add_thread(tid)?;
@@ -159,13 +151,12 @@ impl Tasker {
         }
 
         // On alloue la pile kernel pour le nouveau thread.
-        let mut kernel_mapper = Kernel::on_instance().mapper();
         let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
                 self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
-                return Err(e)
+                panic!("{:?}", e);
             }
         };
 
@@ -183,6 +174,8 @@ impl Tasker {
     ///
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent au nouveau thread.
+    /// * `user_stack_top`: haut de la pile utilisateur allouée au nouveau thread.
+    /// * `user_stack_size`: taille de la pile utilisateur allouée au nouveau thread.
     /// * `entry_point`: point d'entré pour l'exécution du nouveau thread.
     ///
     /// # Return
@@ -191,6 +184,8 @@ impl Tasker {
     pub fn create_user_thread(
         &mut self,
         parent_pid: PId,
+        user_stack_top: VirtAddr,
+        user_stack_size: usize,
         entry_point: u64,
     ) -> TaskerResult<TId> {
         let process = self.process_manager.get_mut(parent_pid)?;
@@ -198,27 +193,16 @@ impl Tasker {
             return Err(TaskerError::WrongProcessKind);
         }
 
-        let mut kernel_mapper = Kernel::on_instance().mapper();
         let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(&mut kernel_mapper, kernel_top_vaddr) } {
+        let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
                 self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
-                return Err(e)
+                panic!("{:?}", e);
             }
         };
 
-        let mut user_mapper = unsafe { process.get_address_space().mapper() };
-        let user_top_vaddr = process.allocate_top_vaddr()?;
-        let user_stack = match unsafe { UserStack16Kib::allocate(&mut user_mapper, user_top_vaddr) } {
-            Ok(stack) => stack,
-            Err(e) => {
-                process.deallocate_top_vaddr(user_top_vaddr).ok();
-                return Err(e)
-            }
-        };
-
-        let tid = self.thread_manager.create_user_thread(parent_pid, entry_point, user_stack, kernel_stack);
+        let tid = self.thread_manager.create_user_thread(parent_pid, entry_point, user_stack_top, kernel_stack);
         self.process_manager.add_thread(parent_pid, tid)?;
         self.scheduler.add_thread(tid)?;
 
@@ -268,21 +252,10 @@ impl Tasker {
         if let Ok(thread) = self.thread_manager.get_mut(tid) {
             thread.kill();
             
-            // On désalloue sa pile kernel d'abord.
+            // On désalloue sa pile kernel.
             let top_vaddr = thread.get_kernel_top_vaddr();
             self.kernel_stack_allocator.deallocate_top(top_vaddr);
             thread.deallocate_kernel_stack();
-
-            // Puis si le processus et lui sont de type utilisateur
-            // on désalloue la pile utilisateur.
-            if process.get_kind() == ProcessKind::User && thread.get_parent_pid() == pid {
-                if let Ok(top_vaddr) = thread.get_user_stack_top_vaddr() {
-                    process.deallocate_top_vaddr(top_vaddr).ok();
-                }
-
-                let mut user_mapper = unsafe { process.get_address_space().mapper() };
-                thread.deallocate_user_stack(&mut user_mapper).ok();
-            }
         }
 
         // enfin, on libère la mémoire du thread.
@@ -328,8 +301,8 @@ impl Tasker {
 
                     // On met à jour le registre cr3 si nécessaire.
                     let parent_pid = next_thread.get_parent_pid();
-                    if let Ok(process) = tasker.process_manager.get(parent_pid) {
-                        unsafe { process.get_address_space().swap_pml4() };
+                    if let Ok(process) = tasker.process_manager.get_mut(parent_pid) {
+                        unsafe { process.get_user_mapper().unwrap().set_as_current(); };
                     }
 
                     // On met à jour la pile d'exécution noyau.
@@ -365,15 +338,6 @@ pub enum TaskerError {
 
     /// On essaie d'ajouter un élément qui existe déjà.
     AlreadyExists,
-
-    /// Plus assez de mémoire pour l'allocation de pile.
-    OutOfMemory,
-
-    /// Impossible de mapper une frame dans un mapper utilisateur.
-    MappingFailed,
-
-    /// Signale une addresse mal alignée ou inaccessible.
-    UnalignedAddress,
 }
 
 /// Interface de manipulation des resultats pouvant renvoyer des Result.

@@ -2,9 +2,10 @@
 //! Un thread doit forcément être associé à un processus parent.
 
 use core::sync::atomic::{AtomicUsize, Ordering};
-use x86_64::{VirtAddr, structures::paging::OffsetPageTable};
 use super::super::process_manager::process::PId;
-use crate::{arch::x86_64::stack::{KernelStack16Kib, UserStack16Kib}, kernel::Kernel, memory::cpu::CpuContext};
+use crate::arch::hal::interrupts::{new_kernel_interruption_stack_frame, new_user_interruption_stack_frame};
+use crate::memory::stack::KernelStack16Kib;
+use crate::memory::types::VirtAddr;
 use crate::tasker::{TaskerResult, TaskerError};
 
 /// Identifiant d'un thread.
@@ -21,7 +22,7 @@ pub struct Thread {
     pub rsp: u64,
     pub state: ThreadState,
     kernel_stack: KernelStack16Kib,
-    user_stack: Option<UserStack16Kib>
+    user_stack_top: Option<VirtAddr>
 }
 
 impl Thread {
@@ -39,9 +40,14 @@ impl Thread {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            rsp: CpuContext::new_kernel(kernel_stack.get_top_vaddr().as_u64(), entry_point),
+            rsp: unsafe { 
+                new_kernel_interruption_stack_frame(
+                    kernel_stack.get_top_vaddr(),
+                    entry_point
+                ).as_u64()
+            },
             kernel_stack,
-            user_stack: None
+            user_stack_top: None
         }
     }
 
@@ -50,19 +56,25 @@ impl Thread {
     /// # Arguments
     /// * `parent_pid`: Identifiant du processus parent auquel le thread sera associé.
     /// * `entry_point`: Point d'entré de l'exécution du nouveau thread.
-    /// * `user_stack`: Pile utilisateur allouée au thread.
+    /// * `user_stack_top`: Haut de la pile utilisateur allouée au thread.
     /// * `kernel_stack`: Pile kernel allouée au thread.
     ///
     /// # Return
     /// Nouveau thread utilisateur associé au point d'entré en paramètre.
-    pub fn new_user(parent_pid: PId, entry_point: u64, user_stack: UserStack16Kib, kernel_stack: KernelStack16Kib) -> Self {
+    pub fn new_user(parent_pid: PId, entry_point: u64, user_stack_top: VirtAddr, kernel_stack: KernelStack16Kib) -> Self {
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
             state: ThreadState::Ready,
-            rsp: CpuContext::new_user(kernel_stack.get_top_vaddr().as_u64(), entry_point, user_stack.get_top_vaddr().as_u64()),
+            rsp: unsafe {
+                new_user_interruption_stack_frame(
+                    user_stack_top,
+                    kernel_stack.get_top_vaddr(),
+                    entry_point
+                ).as_u64()
+            },
             kernel_stack,
-            user_stack: Some(user_stack)
+            user_stack_top: Some(user_stack_top)
         }
     }
 
@@ -98,29 +110,15 @@ impl Thread {
 
     /// Désalloue la pile kernel interne au thread.
     pub fn deallocate_kernel_stack(&mut self) {
-        let mut kernel_mapper = Kernel::on_instance().mapper();
-        unsafe { self.kernel_stack.deallocate(&mut kernel_mapper) };
+        unsafe { self.kernel_stack.deallocate() };
     }
 
     /// Renvoie l'adresse virtuelle du haut de la pile utilisateur.
     /// Renvoie une erreur si user_stack non défini
     pub fn get_user_stack_top_vaddr(&self) -> TaskerResult<VirtAddr> {
-        if let Some(stack) = &self.user_stack {
-            return Ok(stack.get_top_vaddr())
+        if let Some(stack) = self.user_stack_top {
+            return Ok(stack)
         }
-        Err(TaskerError::WrongProcessKind)
-    }
-
-    /// Désalloue la pile utilisateur associée au thread courant.
-    /// Renvoie une erreur si pas de pile instanciée.
-    pub fn deallocate_user_stack(
-        &mut self,
-        user_mapper: &mut OffsetPageTable<'static>
-    ) -> TaskerResult<()> {
-        if let Some(user_stack) = &mut self.user_stack {
-            unsafe { user_stack.deallocate(user_mapper); }
-        }
-
         Err(TaskerError::WrongProcessKind)
     }
 }

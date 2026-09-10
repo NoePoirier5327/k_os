@@ -4,9 +4,10 @@
 pub mod thread;
 
 use alloc::collections::btree_map::BTreeMap;
+use crate::memory::types::VirtAddr;
 use super::process_manager::process::PId;
 use crate::tasker::{TaskerResult, TaskerError};
-use crate::arch::x86_64::stack::{KernelStack16Kib, UserStack16Kib};
+use crate::memory::stack::KernelStack16Kib;
 use thread::{TId, Thread};
 
 /// Struture de gestion des threads de l'os.
@@ -57,10 +58,10 @@ impl ThreadManager {
         &mut self,
         parent_pid: PId,
         entry: u64,
-        user_stack: UserStack16Kib,
+        user_stack_top: VirtAddr,
         kernel_stack: KernelStack16Kib
     ) -> TId {
-        let thread = Thread::new_user(parent_pid, entry, user_stack, kernel_stack);
+        let thread = Thread::new_user(parent_pid, entry, user_stack_top, kernel_stack);
         let tid = thread.get_tid();
         self.threads.insert(tid, thread);
         tid

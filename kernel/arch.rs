@@ -19,7 +19,7 @@ pub use x86_64::gdt::X86_64CPU_CONTEXT_INTERFACE as CPU_CONTEXT;
 
 // Aux interfaces d'appels systèmes
 #[cfg(target_arch = "x86_64")]
-pub use x86_64::syscalls::x86_64_SYSCALL_INTERFACE as SYSCALL_INTERFACE;
+pub use x86_64::syscalls::X86_64SYSCALL_INTERFACE as SYSCALL_INTERFACE;
 
 // Aux fonctions génériques de la mémoire.
 #[cfg(target_arch = "x86_64")]

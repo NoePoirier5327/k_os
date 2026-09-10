@@ -28,6 +28,18 @@ impl VirtAddr {
     pub fn as_u64(&self) -> u64 {
         self.0
     }
+
+    pub fn as_ptr<T>(self) -> *const T {
+        self.0 as *const T
+    }
+
+    pub fn as_mut_ptr<T>(self) -> *mut T {
+        self.0 as *mut T
+    }
+
+    pub fn is_aligned(&self, alignment: u64) -> bool {
+        alignment.is_power_of_two() && (self.0 & (alignment - 1)) == 0
+    }
 }
 
 /// Représente un cadre mémoire physique.
@@ -99,7 +111,7 @@ impl core::iter::IntoIterator for InclusivePageRange {
 }
 
 /// Itérateur pour le type InclusivePageRange.
-struct InclusivePageRangeIterator {
+pub struct InclusivePageRangeIterator {
     current: Page,
     end: Page,
     finished: bool

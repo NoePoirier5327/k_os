@@ -1,6 +1,10 @@
 //! Module contenant le code d'abstraction des interruptions processeur.
 
-use crate::memory::types::VirtAddr;
+#[cfg(target_arch = "x86_64")]
+pub use crate::arch::x86_64::interrupts::new_kernel_interruption_stack_frame;
+
+#[cfg(target_arch = "x86_64")]
+pub use crate::arch::x86_64::interrupts::new_user_interruption_stack_frame;
 
 /// Type de l'interruption que l'on souhaite cibler.
 pub enum InterruptionType {
@@ -21,23 +25,4 @@ pub trait InterruptionController {
 
     /// Marque la fin de l'interruption en paramètre.
     fn end_of_interrupt(&mut self, i_type: InterruptionType);
-}
-
-/// Interface générique de récuperation de contexte d'exécution à chaque interruption timer.
-/// Utile pour le multiprocess.
-pub trait InterruptionStackFrame {
-    /// Créer une nouvelle stack frame d'interruption kernel et renvoie l'adresse dans la mémoire
-    /// virtuelle du haut de sa pile.
-    unsafe fn new_kernel(
-        kernel_stack_top: VirtAddr,
-        exec_entry_point: VirtAddr
-    ) -> VirtAddr;
-
-    /// Créer une nouvelle stack frame d'interruption utilisateur et renvoie l'adresse dans la
-    /// mémoire virtuelle du haut de sa pile.
-    unsafe fn new_user(
-        user_stack_top: VirtAddr,
-        kernel_stack_top: VirtAddr,
-        exec_entry_point: VirtAddr
-    ) -> VirtAddr;
 }

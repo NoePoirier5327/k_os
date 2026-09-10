@@ -12,7 +12,7 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 /// Gère les sélecteurs de segments x86_64.
 #[derive(Debug, Clone, Copy)]
-struct Selector {
+pub struct Selector {
     kernel_code_selector: SegmentSelector,
     kernel_data_selector: SegmentSelector,
     user_code_selector: SegmentSelector,
@@ -39,7 +39,7 @@ impl Selector {
 }
 
 /// Rpérésente le contexte d'exécution du processeur x86_64
-struct X86_64CpuContext {
+pub struct X86_64CpuContext {
     gdt: GlobalDescriptorTable,
     selectors: Selector,
     tss: Mutex<TaskStateSegment>
