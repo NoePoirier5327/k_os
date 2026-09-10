@@ -1,10 +1,8 @@
 //! Contient le singleton du kernel.
 
 use crate::memory::types::PhysAddr;
-use crate::arch::init_kernel_memory;
-use crate::arch::hal::memory::{FrameAllocator, Mapper};
+use crate::arch::hal::memory::{FrameAllocator, Mapper, init_kernel_memory};
 use crate::arch::without_interrupts;
-use alloc::boxed::Box;
 use spin::{Once, Mutex};
 
 /// Instance global protégée par un OnceLock.
@@ -12,11 +10,11 @@ static KERNEL_INSTANCE: Once<Kernel> = Once::new();
 
 /// Frame allocator du kernel, lui aussi un singleton.
 /// Accessible via with_frame_allocator ou on_memory pour avoir le mapper avec.
-static FRAME_ALLOCATOR: Once<Mutex<Box<dyn FrameAllocator + Send>>> = Once::new();
+static FRAME_ALLOCATOR: Once<Mutex<FrameAllocator>> = Once::new();
 
 /// Mapper du kernel, aussi un singleton.
 /// Accessible via with_mapper ou on_memory pour avoir le frame_allocator avec.
-static MAPPER: Once<Mutex<Box<dyn Mapper + Send>>> = Once::new();
+static MAPPER: Once<Mutex<Mapper>> = Once::new();
 
 pub struct Kernel {
     phys_mem_offset: PhysAddr,
@@ -37,11 +35,11 @@ impl Kernel {
         let (frame_allocator, mapper) = unsafe { init_kernel_memory(phys_mem_offset, multiboot2_info_ptr) };
 
         FRAME_ALLOCATOR.call_once(|| {
-            Mutex::new(Box::new(frame_allocator))
+            Mutex::new(frame_allocator)
         });
 
         MAPPER.call_once(|| {
-            Mutex::new(Box::new(mapper))
+            Mutex::new(mapper)
         });
 
         KERNEL_INSTANCE.call_once(|| Kernel {
@@ -65,28 +63,28 @@ impl Kernel {
     /// Accesseur de l'instance du frame allocator.
     /// Gère le temps de validité du mutex interne.
     /// Empêche les interruptions durant l'appel.
-    pub fn with_frame_allocator<R>(f: impl FnOnce(&mut dyn FrameAllocator) -> R) -> R {
+    pub fn with_frame_allocator<R>(f: impl FnOnce(&mut FrameAllocator) -> R) -> R {
         let frame_allocator = FRAME_ALLOCATOR
             .get()
             .expect("The frame allocator is not initialized.");
 
         without_interrupts(|| {
             let mut guard = frame_allocator.lock();
-            f(&mut **guard)
+            f(&mut guard)
         })
     }
 
     /// Accesseur de l'instance du mapper kernel.
     /// Gère les temps de validité du mutex interne.
     /// Empêche les interruptions durant l'appel.
-    pub fn with_mapper<R>(f: impl FnOnce(&mut dyn Mapper) -> R) -> R {
+    pub fn with_mapper<R>(f: impl FnOnce(&mut Mapper) -> R) -> R {
         let mapper = MAPPER
             .get()
             .expect("The kernel mapper is not initialized.");
 
         without_interrupts(|| {
             let mut guard = mapper.lock();
-            f(&mut **guard)
+            f(&mut guard)
         })
     }
 
@@ -94,7 +92,7 @@ impl Kernel {
     /// Gère leurs temps de validité.
     /// Empêche les interruptions durant l'appel.
     pub fn with_memory<R>(
-        f: impl FnOnce(&mut dyn FrameAllocator, &mut dyn Mapper) -> R
+        f: impl FnOnce(&mut FrameAllocator, &mut Mapper) -> R
     ) -> R {
         let frame_allocator = FRAME_ALLOCATOR
             .get()
@@ -107,7 +105,7 @@ impl Kernel {
         without_interrupts(|| {
             let mut allocator_guard = frame_allocator.lock();
             let mut mapper_guard = mapper.lock();
-            f(&mut **allocator_guard, &mut **mapper_guard)
+            f(&mut allocator_guard, &mut mapper_guard)
         })
     }
 }

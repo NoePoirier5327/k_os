@@ -1,12 +1,10 @@
 //! Module de gestion de processus (kernel ou non).
 //! Un processus stocke l'état de son execution global ainsi que ses données d'exécutions.
 
-use alloc::boxed::Box;
 use alloc::collections::btree_set::BTreeSet;
 use alloc::string::String;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use crate::arch::hal::memory::Mapper;
-use crate::arch::new_user_mapper;
+use crate::arch::hal::memory::{Mapper, MapperTrait, new_user_mapper};
 use super::super::thread_manager::thread::TId;
 use crate::tasker::{TaskerError, TaskerResult};
 
@@ -19,16 +17,16 @@ pub type PId = usize;
 static NEXT_PID: AtomicUsize = AtomicUsize::new(1usize);
 
 /// Réprésente un processus de l'instance courante de l'os.
-pub struct Process {
+pub struct Process<'a> {
     pid: PId,
     name: String,
     kind: ProcessKind,
     state: ProcessState,
     threads: BTreeSet<TId>,
-    user_mapper: Option<Box<dyn Mapper + Send>>
+    user_mapper: Option<Mapper<'a>>
 }
 
-impl Process {
+impl<'a> Process<'a> {
     /// Instancie un nouveau processus kernel.
     ///
     /// # Argument
@@ -55,7 +53,7 @@ impl Process {
             kind: ProcessKind::User,
             state: ProcessState::Alive,
             threads: BTreeSet::new(),
-            user_mapper: Some(Box::new(unsafe { new_user_mapper() }))
+            user_mapper: Some(unsafe { new_user_mapper() })
         }
     }
 
@@ -113,9 +111,9 @@ impl Process {
 
     /// Renvoie une interface vers le mapper utilisateur courant si le processus est de type
     /// utilisateur.
-    pub fn get_user_mapper(&mut self) -> TaskerResult<&mut dyn Mapper> {
+    pub fn get_user_mapper(&mut self) -> TaskerResult<&mut dyn MapperTrait> {
         if let Some(mapper) = &mut self.user_mapper {
-            return Ok(&mut **mapper)
+            return Ok(mapper)
         }
 
         Err(TaskerError::WrongProcessKind)

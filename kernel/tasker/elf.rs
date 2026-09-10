@@ -1,5 +1,5 @@
 use goblin::elf::{Elf, program_header::PT_LOAD};
-use crate::arch::hal::memory::Mapper;
+use crate::arch::hal::memory::{FrameAllocatorTrait, MapperTrait};
 use crate::memory::types::{VirtAddr, Page, PageFlags, InclusivePageRange};
 use crate::kernel::Kernel;
 
@@ -21,7 +21,7 @@ pub struct AlignedElfBinary<T: ?Sized>(pub T);
 /// - L'architecture cible des executables doit être x86_64.
 pub unsafe fn load_elf(
     elf_bytes: &[u8],
-    user_mapper: &mut dyn Mapper
+    user_mapper: &mut dyn MapperTrait
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
     let virt_mem_offset = VirtAddr::new(Kernel::on_instance().get_phys_mem_offset().as_u64());

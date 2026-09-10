@@ -7,7 +7,7 @@ pub mod fixed_size_block;
 
 use fixed_size_block::FixedSizeBlockAllocator;
 use crate::memory::types::{InclusivePageRange, Page, PageFlags, VirtAddr, MemoryAllocationError};
-use crate::arch::hal::memory::{FrameAllocator, Mapper};
+use crate::arch::hal::memory::{FrameAllocator, Mapper, FrameAllocatorTrait, MapperTrait};
 
 
 #[global_allocator]
@@ -29,8 +29,8 @@ pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 /// # Return
 /// Renvoie soit rien si tout va bien, soit le détaille de l'erreur s'il y en a une.
 pub fn init_heap(
-    mapper: &mut dyn Mapper,
-    frame_allocator: &mut dyn FrameAllocator
+    mapper: &mut Mapper,
+    frame_allocator: &mut FrameAllocator
 ) ->Result<(), MemoryAllocationError> {
     let page_range = {
         let heap_start = VirtAddr::new(HEAP_START as u64);
@@ -41,9 +41,13 @@ pub fn init_heap(
     };
 
     for page in page_range {
-        let frame = frame_allocator
-            .allocate_frame()
-            .ok_or(MemoryAllocationError::FrameAllocationFailed)?;
+        let frame = match frame_allocator.allocate_frame() {
+            Some(frame) => {
+                //crate::disp_debug!("Page 0x{:x} | Frame 0x{:x}", page.get_start_address().as_u64(), frame.get_start_address().as_u64());
+                frame
+            },
+            None => return Err(MemoryAllocationError::FrameAllocationFailed)
+        };
 
         let flags = PageFlags::PRESENT | PageFlags::WRITABLE;
 

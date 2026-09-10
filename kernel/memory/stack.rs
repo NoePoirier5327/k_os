@@ -2,6 +2,7 @@
 
 use alloc::vec::Vec;
 use super::types::{VirtAddr, PageFlags, Page, PhysFrame, InclusivePageRange, MemoryAllocationError};
+use crate::arch::hal::memory::{FrameAllocatorTrait, MapperTrait};
 use crate::kernel::Kernel;
 
 /// Alloue un sommet de pile kernel.

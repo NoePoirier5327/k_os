@@ -64,12 +64,13 @@ pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {
     { INTERRUPTION_CONTROLLER.lock().init(); }
 
     // On initialise le kernel.
+    crate::disp_info!("Initialization of the kernel module.");
     Kernel::init(phys_mem_offset, multiboot2_info_ptr);
 
     crate::disp_info!("Initialization of the kernel heap.");
     Kernel::with_memory(|frame_allocator, mapper| {
         memory::heap::init_heap(mapper, frame_allocator)
-            .expect("Failed to initialize kernel's heap.");
+            .expect("Failed to initialize kernel's heap ");
     });
 
     crate::disp_info!("Initialization of the tasker.");

@@ -22,7 +22,7 @@ static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
 /// Interface de gestion des processus.
 /// Il s'agit d'un singleton.
 pub struct Tasker {
-    process_manager: ProcessManager,
+    process_manager: ProcessManager<'static>,
     thread_manager: ThreadManager,
     scheduler: Scheduler,
     kernel_stack_allocator: KernelStackAllocator,

@@ -37,8 +37,17 @@ impl VirtAddr {
         self.0 as *mut T
     }
 
+    /// Vérifie que l'adresse interne est alignée du nombre de bits en paramètre.
     pub fn is_aligned(&self, alignment: u64) -> bool {
         alignment.is_power_of_two() && (self.0 & (alignment - 1)) == 0
+    }
+
+    /// Renvoie l'adresse interne alignée vers le bas.
+    ///
+    /// # Panic
+    /// Si alignment n'est pas une puissance de deux alors la fonction panique.
+    pub fn align_down(&self, alignment: u64) -> Self {
+        VirtAddr::new(align_down(self.0, alignment))
     }
 }
 
@@ -70,9 +79,11 @@ pub struct Page {
 }
 
 impl Page {
+    /// Créer une nouvelle page de 4Kib avec l'adresse en paramètre comme adresse principale alignée
+    /// vers le bas.
     pub fn new(addr: VirtAddr) -> Self {
         Self {
-            start_address: addr
+            start_address: addr.align_down(PAGE_SIZE as u64)
         }
     }
 
@@ -175,4 +186,16 @@ pub enum MemoryAllocationError {
     UnmappingFailed,
     UnalignedAddress,
     OutOfMemory
+}
+
+/// Aligne l'adresse en paramètre du nombre de bits représenté par l'alignement en paramètre.
+///
+/// # Panic
+/// Si alignment n'est pas une puissance de deux la fonction panique.
+pub const fn align_down(addr: u64, alignment: u64) -> u64 {
+    if !alignment.is_power_of_two() {
+        panic!("The alignment should be a power of two.");
+    }
+
+    addr & !(alignment - 1)
 }

@@ -10,11 +10,11 @@ use crate::tasker::{TaskerError, TaskerResult};
 /// Gestionnaire de processus.
 /// S'occupe des les créers et des les détruires.
 /// L'ordonnanceur, lui, s'occupera des changements de context d'exécution.
-pub struct ProcessManager {
-    processes: BTreeMap<PId, Process>,
+pub struct ProcessManager<'a> {
+    processes: BTreeMap<PId, Process<'a>>,
 }
 
-impl ProcessManager {
+impl<'a> ProcessManager<'a> {
     /// Instancie un nouveau gestionnaire de processus.
     pub fn new() -> Self {
         Self {
@@ -51,7 +51,7 @@ impl ProcessManager {
     }
 
     /// Renvoie, si trouver, un emprunt vers le processus associé à l'identifiant en paramètre.
-    pub fn get(&self, pid: PId) -> TaskerResult<&Process> {
+    pub fn get(&self, pid: PId) -> TaskerResult<&Process<'a>> {
         if let Some(process) = self.processes.get(&pid) {
             return Ok(process);
         }
@@ -61,7 +61,7 @@ impl ProcessManager {
 
     /// Renvoie, si trouver, un emprunt mutable vers le processus associé à l'identifiant en
     /// paramètre.
-    pub fn get_mut(&mut self, pid: PId) -> TaskerResult<&mut Process> {
+    pub fn get_mut(&mut self, pid: PId) -> TaskerResult<&mut Process<'a>> {
         if let Some(process) = self.processes.get_mut(&pid) {
             return Ok(process);
         }

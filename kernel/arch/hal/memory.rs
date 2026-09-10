@@ -2,8 +2,12 @@
 
 use crate::memory::types::{PhysFrame, PhysAddr, Page, PageFlags, VirtAddr, MemoryAllocationError};
 
+#[cfg(target_arch = "x86_64")]
+pub use crate::arch::x86_64::memory::{new_user_mapper, init_kernel_memory, X86_64FrameAllocator as FrameAllocator, X86_64Mapper as Mapper};
+
+
 /// Frame allocator global indépendant du matériel cible.
-pub trait FrameAllocator {
+pub trait FrameAllocatorTrait {
     /// Alloue un cadre physique et le renvoie
     /// Si erreur quelconque, renvoie None.
     fn allocate_frame(&mut self) -> Option<PhysFrame>;
@@ -13,7 +17,7 @@ pub trait FrameAllocator {
 }
 
 /// Mapper de page dans l'alloueur de cadre au dessus.
-pub trait Mapper {
+pub trait MapperTrait {
     /// Mappe une page virtuelle vers une frame physique, la page est mapper selon un mot de droit
     /// géré par le type PageFlags.
     ///
@@ -24,7 +28,7 @@ pub trait Mapper {
         page: Page,
         frame: PhysFrame,
         flags: PageFlags,
-        allocator: &mut dyn FrameAllocator
+        allocator: &mut dyn FrameAllocatorTrait
     ) -> Result<(), MemoryAllocationError>;
 
     /// Supprime le mappage de la page en paramètre et renvoie son cadre physique.

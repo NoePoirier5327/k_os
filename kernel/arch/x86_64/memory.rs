@@ -29,8 +29,8 @@ use x86_64::{
     PhysAddr as X86_64PhysAddr
 };
 
-use multiboot2::{BootInformation, BootInformationHeader, MemoryAreaType, MemoryMapTag};
-use crate::arch::hal::memory::{FrameAllocator, Mapper};
+use multiboot2::{BootInformation, BootInformationHeader, MemoryMapTag};
+use crate::arch::hal::memory::{FrameAllocatorTrait, MapperTrait};
 use crate::memory::types::{MemoryAllocationError, Page, PageFlags, PhysAddr, PhysFrame, VirtAddr};
 use crate::kernel::Kernel;
 
@@ -42,7 +42,8 @@ extern "C" {
 
 /// Récupère, au démarrage du kernel, sa pml4 initial.
 /// Fonctionne car appelé dans init_kernel_memory qui est appelé au démarrage du kernel.
-const INITIAL_KERNEL_PML4: Lazy<X86_64PhysFrame> = Lazy::new(|| {
+static INITIAL_KERNEL_PML4: Lazy<X86_64PhysFrame> = Lazy::new(|| {
+    crate::disp_info!("Getting initial pml4.");
     let (pml4, _) = Cr3::read();
     pml4
 });
@@ -91,8 +92,10 @@ pub unsafe fn init_kernel_memory(
     crate::disp_info!("Instanciating the x86_64 frame allocator.");
     let frame_allocator = X86_64FrameAllocator::new(memory_map_tag);
 
+    let pml4_frame = *INITIAL_KERNEL_PML4; // Pour être sûr que le LazyStatic est visité avant l'instanciation.
+
     crate::disp_info!("Instanciating the x86_64 kernel mapper.");
-    let kernel_mapper = X86_64Mapper::new(phys_mem_offset, *INITIAL_KERNEL_PML4);
+    let kernel_mapper = X86_64Mapper::new(phys_mem_offset, pml4_frame);
 
     (
         frame_allocator,
@@ -150,8 +153,8 @@ fn new_user_pml4(phys_mem_offset: PhysAddr) -> X86_64PhysFrame {
 /// Structure d'un alloueur mémoire simple pour l'architecture x86_64.
 pub struct X86_64FrameAllocator {
     memory_map : &'static MemoryMapTag,
+    current_address: u64,
     current_region_index: usize,
-    current_address : u64,
     recycle_bin: Vec<X86_64PhysFrame>
 }
 
@@ -167,92 +170,70 @@ impl X86_64FrameAllocator {
     /// # Safety
     /// L'appelant doit garantir que la carte de la mémoire est valide.
     pub unsafe fn new(memory_map: &'static MemoryMapTag) -> Self {
-        let memory_areas = memory_map.memory_areas();
-        let first_address = memory_areas.first().map(|address| address.start_address()).unwrap_or(0);
+        let regions = memory_map.memory_areas();
+        let first_region = regions
+            .iter()
+            .find(|r| r.typ() == multiboot2::MemoryAreaType::Available);
+        let current_address = first_region.map(|r| r.start_address()).unwrap_or(0);
 
         Self {
             memory_map,
+            current_address,
             current_region_index: 0,
-            current_address: first_address,
             recycle_bin: Vec::new()
         }
     }
 
-    /// Calcul et renvoie la n-ième frame utilisable
-    fn calculate_usable_frames(&mut self) -> Option<X86_64PhysFrame> {
-        // On recycle si possible les anciennes frames désallouées.
-        if let Some(frame) = self.recycle_bin.pop() {
-            return Some(frame)
-        }
-
-        // On récupère un accès vers les pages du kernel
+    /// Calcul et renvoie la prochaine frame utilisable.
+    /// S'il n'en trouve pas, renvoie None.
+    fn calculate_next_usable_frame(&mut self) -> Option<X86_64PhysFrame> {
+        let regions = self.memory_map.memory_areas();
         let kernel_start = core::ptr::addr_of!(__kernel_start) as u64;
         let kernel_end = core::ptr::addr_of!(__kernel_end) as u64;
 
-        let mut to_return = None;
+        while self.current_region_index < regions.len() {
+            let region = &regions[self.current_region_index];
 
-        let memory_areas = self.memory_map.memory_areas();
-        while self.current_region_index < memory_areas.len() && to_return.is_none() {
-            // On récupère la région courante.
-            let current_region = &memory_areas[self.current_region_index];
-
-            // Si elle n'est pas accessible, on passe à la suivante.
-            if current_region.typ() != MemoryAreaType::Available {
+            if region.typ() != multiboot2::MemoryAreaType::Available {
                 self.current_region_index += 1;
-
-                // Si on peut encore exécuter une nouvelle boucle,
-                // alors on met à jour l'adresse courante.
-                if self.current_region_index < memory_areas.len() {
-                    self.current_address = memory_areas[self.current_region_index].start_address();
+                if self.current_region_index < regions.len() {
+                    self.current_address = regions[self.current_region_index].start_address();
                 }
-
-                // On force le passage à la nouvelle itération de la boucle.
                 continue;
             }
 
-            // On aligne l'adresse courante sur 4096 octets.
-            let current_address = (self.current_address + 4095) & !4095;
+            let addr = (self.current_address + 4095) & !4095;
+            let frame_end = addr + 4096;
 
-            // Si l'adresse courante dépasse la fin de la région courante,
-            // on passe à la suivante
-            if current_address + 4096 > current_region.end_address() {
+            if frame_end > region.end_address() {
                 self.current_region_index += 1;
-
-                // Si on peut encore exécuter une nouvelle boucle,
-                // alors on met à jour l'adresse courante.
-                if self.current_region_index < memory_areas.len() {
-                    self.current_address = memory_areas[self.current_region_index].start_address();
+                if self.current_region_index < regions.len() {
+                    self.current_address = regions[self.current_region_index].start_address();
                 }
-
-                // On force le passage à la nouvelle itération de la boucle.
                 continue;
             }
 
-            // On fait avancer l'adresse courante pour le prochain appel.
-            self.current_address = current_address + 4096;
+            self.current_address = frame_end;
 
-            // On ignore l'adresse NULL et les adresses kernel.
-            if current_address == 0 || (current_address + 4096 > kernel_start && current_address < kernel_end) {
+            if addr == 0 || (addr < kernel_end && frame_end > kernel_start) {
                 continue;
             }
 
-            // Enfin, toutes les étapes sont passées, on peut renvoyer un cadre valide.
-            to_return = Some(X86_64PhysFrame::containing_address(X86_64PhysAddr::new(current_address)));
+            return Some(X86_64PhysFrame::containing_address(X86_64PhysAddr::new(addr)));
         }
 
-        to_return
+        None
     }
 }
 
-impl FrameAllocator for X86_64FrameAllocator {
+impl FrameAllocatorTrait for X86_64FrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        self.calculate_usable_frames().map(|frame| {
-            PhysFrame::new(
-                PhysAddr::new(
-                    frame.start_address().as_u64()
-                )
-            )
-        })
+        if let Some(frame) = self.recycle_bin.pop() {
+            return Some(PhysFrame::new(PhysAddr::new(frame.start_address().as_u64())))
+        }
+
+        self.calculate_next_usable_frame()
+            .map(|frame| PhysFrame::new(PhysAddr::new(frame.start_address().as_u64())))
     }
 
     fn deallocate_frame(&mut self, frame: PhysFrame) {
@@ -269,7 +250,7 @@ impl FrameAllocator for X86_64FrameAllocator {
 }
 
 /// Convertit un frame allocator générique en frame allocator spécifique à x86_64.
-struct FrameAllocatorConverter<'a> (&'a mut dyn FrameAllocator);
+struct FrameAllocatorConverter<'a> (&'a mut dyn FrameAllocatorTrait);
 
 unsafe impl<'a> X86_64FrameAllocatorTrait<Size4KiB> for FrameAllocatorConverter<'a> {
     fn allocate_frame(&mut self) -> Option<X86_64PhysFrame<Size4KiB>> {
@@ -309,13 +290,13 @@ impl<'a> X86_64Mapper<'a> {
     }
 }
 
-impl<'a> Mapper for X86_64Mapper<'a> {
+impl<'a> MapperTrait for X86_64Mapper<'a> {
     unsafe fn map_to(
         &mut self,
         page: Page,
         frame: PhysFrame,
         flags: PageFlags,
-        frame_allocator: &mut dyn FrameAllocator
+        frame_allocator: &mut dyn FrameAllocatorTrait
     ) -> Result<(), MemoryAllocationError> {
         // On récupère les accès à la mémoire sous le format x86_64 de la crate du même nom.
         let x86_64_page: X86_64Page<Size4KiB> = X86_64Page::containing_address(X86_64VirtAddr::new(page.get_start_address().as_u64()));
