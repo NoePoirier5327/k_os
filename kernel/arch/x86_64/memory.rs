@@ -371,7 +371,9 @@ impl<'a> Mapper for X86_64Mapper<'a> {
     }
 
     unsafe fn set_as_current(&self) {
-        let (_, flags) = Cr3::read();
-        Cr3::write(self.pml4_frame, flags);
+        let (pml4_frame, flags) = Cr3::read();
+        if pml4_frame != self.pml4_frame {
+            Cr3::write(self.pml4_frame, flags);
+        }
     }
 }
