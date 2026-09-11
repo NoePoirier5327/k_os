@@ -50,3 +50,13 @@ pub trait MapperTrait {
     /// Défini ce mapper comme courant dans la mémoire.
     unsafe fn set_as_current(&self);
 }
+
+/// Représente une organisation générique de la mémoire.
+pub trait MemoryLayout {
+    fn get_user_start(&self) -> u64;
+    fn get_user_end(&self) -> u64;
+    fn get_kernel_start(&self) -> u64;
+    fn get_kernel_end(&self) -> u64;
+    fn get_stack_top(&self) -> u64;
+    fn get_stack_guard_size(&self) -> usize;
+}
