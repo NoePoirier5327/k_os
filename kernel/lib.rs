@@ -18,6 +18,7 @@ pub mod syscall;
 use core::panic::PanicInfo;
 use kernel::Kernel;
 use arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT, SYSCALL_INTERFACE};
+use arch::hal::instructions::hlt_loop;
 use arch::hal::interrupts::InterruptionController;
 use arch::hal::cpu::CpuContext;
 use arch::hal::syscalls::SyscallInterface;
@@ -97,9 +98,10 @@ pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {
         */
     });
 
-    arch::hlt_loop();
+    arch::hal::instructions::hlt_loop();
 }
 
+/// Interface de gestion de la panique.
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     use vga_buffer::{set_writer_color, set_default_writer_color, Color};
@@ -111,5 +113,5 @@ fn panic(info: &PanicInfo) -> ! {
     set_default_writer_color();
     println!("]\n{}", info);
 
-    arch::hlt_loop();
+    hlt_loop();
 }

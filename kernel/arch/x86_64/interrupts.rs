@@ -274,12 +274,13 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
 /// * `error_code` : code d'erreur correspondant au dépassement
 extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
     use x86_64::registers::control::Cr2;
+    use crate::arch::hal::instructions::hlt_loop;
 
     crate::disp_exception!("page fault.");
     println!("Accessed Address: {:?}", Cr2::read());
     println!("Error Code: {:?}", error_code);
     println!("{:#?}", stack_frame);
-    crate::arch::hlt_loop();
+    hlt_loop();
 }
 
 /// Fonction de gestion d'interruption inconnue.

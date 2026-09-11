@@ -74,17 +74,3 @@ pub fn get_kernel_addr_range_end() -> u64 {
         _ => panic!("Current architecture support not implemented yet.")
     }
 }
-
-/// Met en veille l'exécution du processeur en fonction de l'architecture courante.
-pub fn hlt_loop() -> ! {
-    extern crate x86_64;
-    use x86_64::instructions;
-
-    loop {
-        match CURRENT_ARCH {
-            ArchType::x86_64 => instructions::hlt(),
-            ArchType::unknown => panic!("Unknown arch type target."),
-            _ => panic!("Current architecture support not implemented yet.")
-        }
-    }
-}
