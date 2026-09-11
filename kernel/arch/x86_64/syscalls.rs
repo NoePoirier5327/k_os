@@ -47,6 +47,7 @@ impl SyscallInterface for X86_64Syscalls {
         }
 
         // On active les syscalls au niveau du registre EFER du cpu.
+        crate::disp_info!("Enabling the syscall flag in the efer register.");
         unsafe {
             Efer::update(|flags| {
                 flags.insert(EferFlags::SYSTEM_CALL_EXTENSIONS);
@@ -54,6 +55,7 @@ impl SyscallInterface for X86_64Syscalls {
         }
 
         // Le registre STAR indique au cpu quels segments charger lors de syscall/sysret.
+        crate::disp_info!("Loading the segments selectors in the Star register.");
         let selectors = X86_64CPU_CONTEXT_INTERFACE.get_selectors();
         match Star::write(
             selectors.get_user_code_selector(),
@@ -63,7 +65,7 @@ impl SyscallInterface for X86_64Syscalls {
         ) {
             Ok(_) => {},
             Err(e) => {
-                panic!("Failed to load segments for syscall/sysret support {:?}", e);
+                panic!("Failed to load segments for syscall/sysret support : {:?}", e);
             }
         }
 
