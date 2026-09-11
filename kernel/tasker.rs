@@ -64,22 +64,8 @@ impl Tasker {
         // On alloue le nouveau processus
         let pid = self.process_manager.create_kernel_process(name);
 
-        // On alloue la nouvelle pile du thread enfant au nouveau processus.
-        let top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(top_vaddr) } {
-            Ok(stack) => stack,
-            Err(e) => {
-                self.kernel_stack_allocator.deallocate_top(top_vaddr);
-                panic!("{:?}", e);
-            }
-        };
-
-        // On alloue le thread enfant.
-        let tid = self.thread_manager.create_kernel_thread(pid, entry_point, kernel_stack);
-
-        // On l'ajoute au processus parent et à l'ordonnanceur.
-        let _ = self.process_manager.get_mut(pid)?.add_thread(tid);
-        let _ = self.scheduler.add_thread(tid);
+        // On lui alloue un thread enfant chargé sur le point d'entré en paramètre.
+        self.create_kernel_thread(pid, entry_point)?;
 
         // On renvoie l'identifiant du nouveau processus.
         Ok(pid)
@@ -272,8 +258,7 @@ impl Tasker {
     /// # Return
     /// Pointeur de pile du nouveau thread à s'exécuter.
     pub extern "C" fn handle_switch(old_rsp: u64) -> u64 {
-        use crate::arch::{INTERRUPTION_CONTROLLER, CPU_CONTEXT, SYSCALL_INTERFACE};
-        use crate::arch::hal::interrupts::{InterruptionType, InterruptionController};
+        use crate::arch::{CPU_CONTEXT, SYSCALL_INTERFACE};
         use crate::arch::hal::cpu::CpuContext;
         use crate::arch::hal::syscalls::SyscallInterface;
 
@@ -302,7 +287,13 @@ impl Tasker {
                     // On met à jour le registre cr3 si nécessaire.
                     let parent_pid = next_thread.get_parent_pid();
                     if let Ok(process) = tasker.process_manager.get_mut(parent_pid) {
-                        unsafe { process.get_user_mapper().unwrap().set_as_current(); };
+                        // Si le processus courant est du type utilisateur, alors on met son mapper
+                        // comme courant
+                        // Sinon, on ne fait rien car le mapping kernel est déjà chargé dans celle
+                        // de l'utilisateur.
+                        if process.get_kind() == ProcessKind::User {
+                            unsafe { process.get_user_mapper().unwrap().set_as_current(); };
+                        }
                     }
 
                     // On met à jour la pile d'exécution noyau.
@@ -314,9 +305,6 @@ impl Tasker {
                     return next_thread.rsp;
                 }
             }
-
-            // On s'acquitte de l'interruption timer du cpu.
-            { INTERRUPTION_CONTROLLER.lock().end_of_interrupt(InterruptionType::Timer); }
 
             // Si aucun thread à exécuter, on conserve l'actuel
             old_rsp

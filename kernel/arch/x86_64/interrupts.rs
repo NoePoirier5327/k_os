@@ -206,6 +206,10 @@ extern "C" fn timer_interrupt_handler() {
         // On applique le nouveau RSP renvoyé dans RAX par handle_switch
         "mov rsp, rax",
 
+        // On s'acquitte de l'interruption timer auprès du pic8259 maître.
+        "mov al, 0x20",
+        "out 0x20, al",
+
         // On restaure les registres généraux du thread entrant
         "pop r15",
         "pop r14",
