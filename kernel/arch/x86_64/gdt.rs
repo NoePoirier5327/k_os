@@ -36,6 +36,10 @@ impl Selector {
     pub fn get_user_data_selector(&self) -> SegmentSelector {
         self.user_data_selector
     }
+
+    pub fn get_tss_selector(&self) -> SegmentSelector {
+        self.tss_selector
+    }
 }
 
 /// Rpérésente le contexte d'exécution du processeur x86_64
