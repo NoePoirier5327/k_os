@@ -46,7 +46,6 @@ impl Selector {
 pub struct X86_64CpuContext {
     gdt: GlobalDescriptorTable,
     selectors: Selector,
-    tss: Mutex<TaskStateSegment>
 }
 
 impl X86_64CpuContext {
@@ -55,7 +54,7 @@ impl X86_64CpuContext {
     }
 }
 
-pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
+static TSS: Lazy<Mutex<TaskStateSegment>> = Lazy::new(|| {
     let mut tss = TaskStateSegment::new();
 
     // Pile saine utilisée lors de Double Fault
@@ -76,14 +75,23 @@ pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
         stack_start + STACK_SIZE
     };
 
+    Mutex::new(tss)
+});
+
+pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
     let mut gdt = GlobalDescriptorTable::new();
     let kernel_code_selector = gdt.append(Descriptor::kernel_code_segment());
     let kernel_data_selector = gdt.append(Descriptor::kernel_data_segment());
     let user_data_selector = gdt.append(Descriptor::user_data_segment());
     let user_code_selector = gdt.append(Descriptor::user_code_segment());
-    let tss_selector = gdt.append(Descriptor::tss_segment(unsafe {
-        core::mem::transmute::<&TaskStateSegment, &'static TaskStateSegment>(&tss)
-    }));
+
+    // On récupère une référence vers la TSS static, puis, on créer son segment dans la gdt.
+    let tss_ref:&'static TaskStateSegment = unsafe {
+        let tss_ptr = &*TSS.lock() as *const TaskStateSegment;
+        &*tss_ptr
+    };
+
+    let tss_selector = gdt.append(Descriptor::tss_segment(tss_ref));
 
     X86_64CpuContext { 
         gdt,
@@ -94,7 +102,6 @@ pub static X86_64CPU_CONTEXT_INTERFACE: Lazy<X86_64CpuContext> = Lazy::new(|| {
             user_data_selector,
             tss_selector
         },
-        tss: Mutex::new(tss)
     }
 });
 
@@ -117,7 +124,7 @@ impl CpuContext for X86_64CpuContext {
     }
 
     fn update_kernel_stack(&self, stack_top: u64) {
-        let mut tss = self.tss.lock();
+        let mut tss = TSS.lock();
         tss.privilege_stack_table[0] = VirtAddr::new(stack_top);
     }
 }
