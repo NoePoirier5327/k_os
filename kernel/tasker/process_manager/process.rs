@@ -5,6 +5,8 @@ use alloc::collections::btree_set::BTreeSet;
 use alloc::string::String;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::arch::hal::memory::{Mapper, MapperTrait, new_user_mapper};
+use crate::memory::types::VirtAddr;
+use crate::memory::stack::UserStackAllocator;
 use super::super::thread_manager::thread::TId;
 use crate::tasker::{TaskerError, TaskerResult};
 
@@ -23,6 +25,7 @@ pub struct Process<'a> {
     kind: ProcessKind,
     state: ProcessState,
     threads: BTreeSet<TId>,
+    user_stack_allocator: Option<UserStackAllocator>,
     user_mapper: Option<Mapper<'a>>
 }
 
@@ -38,6 +41,7 @@ impl<'a> Process<'a> {
             kind: ProcessKind::Kernel,
             state: ProcessState::Alive,
             threads: BTreeSet::new(),
+            user_stack_allocator: None,
             user_mapper: None,
         }
     }
@@ -53,6 +57,7 @@ impl<'a> Process<'a> {
             kind: ProcessKind::User,
             state: ProcessState::Alive,
             threads: BTreeSet::new(),
+            user_stack_allocator: Some(UserStackAllocator::new()),
             user_mapper: Some(unsafe { new_user_mapper() })
         }
     }
@@ -114,6 +119,25 @@ impl<'a> Process<'a> {
     pub fn get_user_mapper(&mut self) -> TaskerResult<&mut dyn MapperTrait> {
         if let Some(mapper) = &mut self.user_mapper {
             return Ok(mapper)
+        }
+
+        Err(TaskerError::WrongProcessKind)
+    }
+
+    /// Alloue un nouveau sommet de pile utilisateur.
+    pub fn allocate_user_stack_top(&mut self) -> TaskerResult<VirtAddr> {
+        if let Some(stack_allocator) = &mut self.user_stack_allocator {
+            return Ok(stack_allocator.allocate_top())
+        }
+
+        Err(TaskerError::WrongProcessKind)
+    }
+
+    /// Désalloue le sommet de pile utilisateur en paramètre.
+    pub fn deallocate_user_stack_top(&mut self, stack_top_vaddr: VirtAddr) -> TaskerResult<()> {
+        if let Some(stack_allocator) = &mut self.user_stack_allocator {
+            stack_allocator.deallocate_top(stack_top_vaddr);
+            return Ok(())
         }
 
         Err(TaskerError::WrongProcessKind)

@@ -3,8 +3,9 @@
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 use super::super::process_manager::process::PId;
+use crate::arch::hal::memory::MapperTrait;
 use crate::arch::hal::interrupts::{new_kernel_interruption_stack_frame, new_user_interruption_stack_frame};
-use crate::memory::stack::KernelStack16Kib;
+use crate::memory::stack::{KernelStack16Kib, UserStack16Kib};
 use crate::memory::types::VirtAddr;
 use crate::tasker::{TaskerResult, TaskerError};
 
@@ -22,6 +23,7 @@ pub struct Thread {
     pub rsp: u64,
     pub state: ThreadState,
     kernel_stack: KernelStack16Kib,
+    user_stack: Option<UserStack16Kib>,
     user_stack_top: Option<VirtAddr>
 }
 
@@ -47,6 +49,7 @@ impl Thread {
                 ).as_u64()
             },
             kernel_stack,
+            user_stack: None,
             user_stack_top: None
         }
     }
@@ -61,7 +64,7 @@ impl Thread {
     ///
     /// # Return
     /// Nouveau thread utilisateur associé au point d'entré en paramètre.
-    pub fn new_user(parent_pid: PId, entry_point: u64, user_stack_top: VirtAddr, kernel_stack: KernelStack16Kib) -> Self {
+    pub fn new_user(parent_pid: PId, entry_point: u64, user_stack_top: VirtAddr, kernel_stack: KernelStack16Kib, user_stack: UserStack16Kib) -> Self {
         Self {
             tid: NEXT_TID.fetch_add(1usize, Ordering::Relaxed),
             parent_pid,
@@ -74,6 +77,7 @@ impl Thread {
                 ).as_u64()
             },
             kernel_stack,
+            user_stack: Some(user_stack),
             user_stack_top: Some(user_stack_top)
         }
     }
@@ -111,6 +115,19 @@ impl Thread {
     /// Désalloue la pile kernel interne au thread.
     pub fn deallocate_kernel_stack(&mut self) {
         unsafe { self.kernel_stack.deallocate() };
+    }
+
+    /// désalloue la pile utilisateur interne au thread.
+    pub fn deallocate_user_stack(
+        &mut self,
+        user_mapper: &mut dyn MapperTrait
+    ) -> Result<(), TaskerError> {
+        if let Some(user_stack) = &mut self.user_stack {
+            unsafe { user_stack.deallocate(user_mapper); }
+            return Ok(())
+        }
+
+        Err(TaskerError::WrongProcessKind)
     }
 
     /// Renvoie l'adresse virtuelle du haut de la pile utilisateur.

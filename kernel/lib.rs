@@ -14,6 +14,7 @@ pub mod vga_buffer;
 pub mod memory;
 pub mod arch;
 pub mod syscall;
+pub mod fs;
 
 use core::panic::PanicInfo;
 use kernel::Kernel;
@@ -91,11 +92,9 @@ pub extern "C" fn kernel_start(multiboot2_info_ptr : u64) -> ! {
             .expect("An error occured during a kernel thread creation ");
 
         // Qu'on supperpose à un processus utilisateur monothread.
-        /*
-        static ELF_BYTES: &AlignedElfBinary<[u8]> = &AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
-        let _ = tasker.create_user_process("Hello", &ELF_BYTES.0)
+        static ELF_BYTES: &fs::elf::AlignedElfBinary<[u8]> = &fs::elf::AlignedElfBinary(*include_bytes!("../user/hello_world/hello"));
+        let _ = tasker.create_user_process_with_elf_entry("Hello", 0, &ELF_BYTES.0)
             .expect("An error occured during a user process creation ");
-        */
     });
 
     arch::hal::instructions::hlt_loop();

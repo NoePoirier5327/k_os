@@ -1,9 +1,9 @@
 //! Module de gestion globale des processus du système d'exploitation.
+// TODO Implémenter des piles à taille variable.
 
 mod process_manager;
 mod thread_manager;
 mod scheduler;
-pub mod elf;
 
 use process_manager::ProcessManager;
 use thread_manager::ThreadManager;
@@ -13,8 +13,7 @@ use thread_manager::thread::{TId, ThreadState};
 use spin::{Once, Mutex};
 use alloc::string::String;
 use crate::arch::without_interrupts;
-use crate::memory::stack::{KernelStackAllocator, KernelStack16Kib};
-use crate::memory::types::VirtAddr;
+use crate::memory::stack::{KernelStack16Kib, KernelStackAllocator, UserStack16Kib};
 
 /// Unique instance de l'interface de gestion des processus.
 static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
@@ -71,49 +70,31 @@ impl Tasker {
         Ok(pid)
     }
 
-    /// Créer un nouveau processus utilisateur et renvoie son identifiant.
+    /// Créer un nouveau processus utilisateur basé sur un programme en elf64
     /// Alloue un obligatoirement un thread utilisateur enfant.
     /// Cette méthode sert à charger des processus issues de binaire elf
     ///
     /// # Arguments
     /// * `name`: nom du nouveau processus.
-    /// * `user_stack_top`: haut de la pile utilisateur allouée au nouveau processus.
     /// * `user_stack_size`: taille de la pile utilisateur allouée au nouveau processus.
     /// * `elf_bytes`: contenu de l'executable binaire sur lequel lancer le nouveau thread.
-    pub fn create_user_process(
+    pub fn create_user_process_with_elf_entry(
         &mut self,
         name: impl Into<String>,
-        user_stack_top: VirtAddr,
         user_stack_size: usize,
         elf_bytes: &[u8],
     ) -> TaskerResult<PId> {
         // On alloue un nouveau processus.
         let pid = self.process_manager.create_user_process(name);
-        let process = self.process_manager.get_mut(pid)?;
+        let user_mapper = self.process_manager.get_mut(pid)?.get_user_mapper()?;
 
-        // On créer le mapper utilisateur associé au nouveau processus.
-        let user_mapper = process.get_user_mapper()?;
+        // On parse le elf
+        let elf_entry_point = unsafe { crate::fs::elf::load_elf(elf_bytes, user_mapper) };
 
-        // On parse le binaire elf en entrée.
-        let entry_point = unsafe { elf::load_elf(elf_bytes, user_mapper) };
+        // puis, on alloue l'enfant du nouveau processus sur le point d'entré du elf.
+        self.create_user_thread(pid, user_stack_size, elf_entry_point.as_u64())?;
 
-        // On alloue la pile kernel du thread enfant.
-        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
-        let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
-            Ok(stack) => stack,
-            Err(e) => {
-                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
-                panic!("{:?}", e);
-            }
-        };
-
-        // On alloue le thread enfant
-        let tid = self.thread_manager.create_user_thread(pid, entry_point.as_u64(), user_stack_top, kernel_stack);
-
-        // On l'ajoute à l'ordonnanceur et à son processus parent.
-        self.scheduler.add_thread(tid)?;
-        process.add_thread(tid)?;
-
+        // Et on renvoie son identifiant.
         Ok(pid)
     }
 
@@ -160,17 +141,16 @@ impl Tasker {
     ///
     /// # Arguments
     /// * `parent_pid`: identifiant du processus parent au nouveau thread.
-    /// * `user_stack_top`: haut de la pile utilisateur allouée au nouveau thread.
     /// * `user_stack_size`: taille de la pile utilisateur allouée au nouveau thread.
     /// * `entry_point`: point d'entré pour l'exécution du nouveau thread.
     ///
     /// # Return
     /// Si tout va bien, renvoie l'identifiant du nouveau thread.
     /// Sinon, si processus parent inaccessible ou pas du type utilisateur, renvoie une erreur.
+    // NOTE L'argument user_stack_size ne sert à rien car pas de pile à taille variable implémenté.
     pub fn create_user_thread(
         &mut self,
         parent_pid: PId,
-        user_stack_top: VirtAddr,
         user_stack_size: usize,
         entry_point: u64,
     ) -> TaskerResult<TId> {
@@ -188,7 +168,23 @@ impl Tasker {
             }
         };
 
-        let tid = self.thread_manager.create_user_thread(parent_pid, entry_point, user_stack_top, kernel_stack);
+        let user_stack_top = process.allocate_user_stack_top()?;
+
+        // On limite la portée de user_mapper pour assurer à rust que l'emprunt est toujours valide.
+        let user_stack_allocation_result = {
+            let user_mapper = process.get_user_mapper()?;
+            unsafe { UserStack16Kib::allocate(user_mapper, user_stack_top) }
+        };
+
+        let user_stack = match user_stack_allocation_result {
+            Ok(stack) => stack,
+            Err(e) => {
+                let _ = process.deallocate_user_stack_top(user_stack_top);
+                panic!("{:?}", e);
+            }
+        };
+
+        let tid = self.thread_manager.create_user_thread(parent_pid, entry_point, user_stack_top, kernel_stack, user_stack);
         self.process_manager.add_thread(parent_pid, tid)?;
         self.scheduler.add_thread(tid)?;
 
@@ -242,6 +238,18 @@ impl Tasker {
             let top_vaddr = thread.get_kernel_top_vaddr();
             self.kernel_stack_allocator.deallocate_top(top_vaddr);
             thread.deallocate_kernel_stack();
+
+            // Puis, on désalloue sa pile utilisateur si besoin.
+            if thread.get_parent_pid() == pid && process.get_kind() == ProcessKind::User {
+                // On sait, par le test précédent, que process est de type utilisateur et que thread
+                // et son enfant, normalement, il est aussi de type utilisateur, donc le unwrap
+                // n'est pas dangereux.
+                let user_stack_top = thread.get_user_stack_top_vaddr().unwrap();
+                process.deallocate_user_stack_top(user_stack_top).unwrap();
+
+                let user_mapper = process.get_user_mapper().unwrap();
+                thread.deallocate_user_stack(user_mapper).ok();
+            }
         }
 
         // enfin, on libère la mémoire du thread.
