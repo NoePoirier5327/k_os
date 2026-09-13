@@ -299,8 +299,8 @@ impl Tasker {
                         // comme courant
                         // Sinon, on ne fait rien car le mapping kernel est déjà chargé dans celle
                         // de l'utilisateur.
-                        if process.get_kind() == ProcessKind::User {
-                            unsafe { process.get_user_mapper().unwrap().set_as_current(); };
+                        if let Ok(user_mapper) = process.get_user_mapper() {
+                            unsafe { user_mapper.set_as_current(); };
                         }
                     }
 
