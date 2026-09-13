@@ -7,16 +7,12 @@ pub mod fixed_size_block;
 
 use fixed_size_block::FixedSizeBlockAllocator;
 use crate::memory::types::{InclusivePageRange, Page, PageFlags, VirtAddr, MemoryAllocationError};
-use crate::arch::hal::memory::{FrameAllocator, Mapper, FrameAllocatorTrait, MapperTrait};
+use crate::arch::hal::memory::{FrameAllocator, FrameAllocatorTrait, Mapper, MapperTrait, MemoryLayout};
+use crate::arch::MEMORY_LAYOUT;
 
 
 #[global_allocator]
 static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
-
-
-// Information de délimitation de la zone virtuelle du tas.
-pub const HEAP_START: usize = 0xFFFF_9000_0000_0000;
-pub const HEAP_SIZE: usize = 5 * 1024 * 1024; // 5 MiB
 
 
 /// Fonction cartographiant la zone mémoire du tas pour pouvoir y accéder plus tard. <br>
@@ -32,11 +28,15 @@ pub fn init_heap(
     mapper: &mut Mapper,
     frame_allocator: &mut FrameAllocator
 ) ->Result<(), MemoryAllocationError> {
+    let heap_start = MEMORY_LAYOUT.get_kernel_heap_start();
+    let heap_end = MEMORY_LAYOUT.get_kernel_heap_end();
+    let heap_size = (heap_end - heap_start + 1) as usize;
+
     let page_range = {
-        let heap_start = VirtAddr::new(HEAP_START as u64);
-        let heap_end = heap_start.as_u64() + HEAP_SIZE as u64 - 1u64;
-        let heap_start_page = Page::new(heap_start);
-        let heap_end_page = Page::new(VirtAddr::new(heap_end));
+        let heap_start_vaddr = VirtAddr::new(heap_start);
+        let heap_end_vaddr = VirtAddr::new(heap_end);
+        let heap_start_page = Page::new(heap_start_vaddr);
+        let heap_end_page = Page::new(heap_end_vaddr);
         InclusivePageRange::new(heap_start_page, heap_end_page)
     };
 
@@ -58,7 +58,7 @@ pub fn init_heap(
 
     // On initialise correctement l'allocateur.
     unsafe {
-        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
+        ALLOCATOR.lock().init(heap_start as usize, heap_size);
     }
 
     Ok(())

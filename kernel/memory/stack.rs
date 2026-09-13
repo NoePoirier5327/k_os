@@ -2,7 +2,8 @@
 
 use alloc::vec::Vec;
 use super::types::{VirtAddr, PageFlags, Page, PhysFrame, InclusivePageRange, MemoryAllocationError};
-use crate::arch::hal::memory::{FrameAllocatorTrait, MapperTrait};
+use crate::arch::hal::memory::{FrameAllocatorTrait, MapperTrait, MemoryLayout};
+use crate::arch::MEMORY_LAYOUT;
 use crate::kernel::Kernel;
 
 /// Alloue un sommet de pile kernel.
@@ -12,12 +13,6 @@ pub struct KernelStackAllocator {
 }
 
 impl KernelStackAllocator {
-    // Adresse dans le higher half réservée pour les piles kernel.
-    const BASE_TOP: u64 = 0xFFFF_FF80_0000_0000u64;
-    const STACK_SIZE: u64 = 16 * 1024; // 16Kib
-    const GUARD_SIZE: u64 = 4 * 1024; // 4Kib
-    const SLOT_SIZE: u64 = Self::STACK_SIZE + Self::GUARD_SIZE;
-
     pub fn new() -> Self {
         Self {
             next_slot: 0usize,
@@ -27,20 +22,27 @@ impl KernelStackAllocator {
 
     /// Alloue et renvoie un top_vaddr pour l'allocation de KernelStack16Kib.
     pub fn allocate_top(&mut self) -> VirtAddr {
+        let base_top = MEMORY_LAYOUT.get_kernel_stack_region_start();
+        let guard_size = MEMORY_LAYOUT.get_stack_guard_size();
+        let stack_size = 16 * 1024;
+        let slot_size = stack_size + guard_size;
+
         let slot = self.free_slots.pop().unwrap_or_else(|| {
             let current = self.next_slot;
             self.next_slot += 1;
             current
         });
 
-        let offset = (slot as u64) * Self::SLOT_SIZE;
-        VirtAddr::new(Self::BASE_TOP - offset)
+        let offset = slot * slot_size;
+        VirtAddr::new(base_top - offset as u64)
     }
 
     /// Désalloue un top_vaddr.
     pub fn deallocate_top(&mut self, top_vaddr: VirtAddr) {
-        let offset = Self::BASE_TOP - top_vaddr.as_u64();
-        let slot = (offset / Self::SLOT_SIZE) as usize;
+        let offset = MEMORY_LAYOUT.get_kernel_stack_region_start() - top_vaddr.as_u64();
+        let stack_size = 16 * 1024;
+        let slot_size = stack_size + MEMORY_LAYOUT.get_stack_guard_size();
+        let slot = (offset as usize) / slot_size;
         self.free_slots.push(slot);
     }
 }
@@ -314,11 +316,6 @@ pub struct UserStackAllocator {
 }
 
 impl UserStackAllocator {
-    const BASE_TOP: u64 = 0x0000_7FFF_FFFF_0000u64; // Adresse canonique de x86_64
-    const STACK_SIZE: u64 = 16 * 1024; // 16Kib
-    const GUARD_SIZE: u64 = 4 * 1024; // 4 Kib
-    const SLOT_SIZE: u64 = Self::STACK_SIZE + Self::GUARD_SIZE;
-
     pub fn new() -> Self {
         Self {
             next_slot: 0usize,
@@ -335,14 +332,24 @@ impl UserStackAllocator {
             current
         });
 
-        let offset = (slot as u64) * Self::SLOT_SIZE;
-        VirtAddr::new(Self::BASE_TOP - offset)
+        let base_top = MEMORY_LAYOUT.get_user_stack_region_start();
+        let guard_size = MEMORY_LAYOUT.get_stack_guard_size();
+        let stack_size = 16 * 1024;
+        let slot_size = stack_size + guard_size;
+
+        let offset = (slot as u64) * slot_size as u64;
+        VirtAddr::new(base_top - offset)
     }
 
     /// Recycles le slot correspondant à un top_vaddr libéré.
     pub fn deallocate_top(&mut self, top_vaddr: VirtAddr) {
-        let offset = Self::BASE_TOP - top_vaddr.as_u64();
-        let slot = (offset / Self::SLOT_SIZE) as usize;
+        let base_top = MEMORY_LAYOUT.get_user_stack_region_start();
+        let guard_size = MEMORY_LAYOUT.get_stack_guard_size();
+        let stack_size = 16 * 1024;
+        let slot_size = stack_size + guard_size;
+
+        let offset = base_top - top_vaddr.as_u64();
+        let slot = (offset as usize) / slot_size;
         self.free_slots.push(slot);
     }
 }

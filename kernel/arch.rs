@@ -23,4 +23,4 @@ pub use x86_64::syscalls::X86_64SYSCALL_INTERFACE as SYSCALL_INTERFACE;
 
 // On exporte les organisations de la mémoire en fonction de l'architecture cible.
 #[cfg(target_arch = "x86_64")]
-pub use x86_64::X86_64MemoryLayout as MEMORY_LAYOUT;
+pub use x86_64::X86_64MEMORY_LAYOUT as MEMORY_LAYOUT;
