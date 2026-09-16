@@ -82,7 +82,7 @@ impl KernelStack16Kib {
             | PageFlags::NO_EXEC;
 
         let mut frames = Vec::with_capacity(page_count);
-        let virt_mem_offset = VirtAddr::new(Kernel::on_instance().get_phys_mem_offset().as_u64());
+        let virt_mem_offset = VirtAddr::new(Kernel::on_instance(|kernel| kernel.get_phys_mem_offset().as_u64()));
 
         for page in InclusivePageRange::new(start_page, end_page) {
             // On alloue le cadre
@@ -214,7 +214,7 @@ impl UserStack16Kib {
             | PageFlags::NO_EXEC;
 
         let mut frames = Vec::with_capacity(page_count);
-        let virt_mem_offset = VirtAddr::new(Kernel::on_instance().get_phys_mem_offset().as_u64());
+        let virt_mem_offset = VirtAddr::new(Kernel::on_instance(|kernel| kernel.get_phys_mem_offset().as_u64()));
 
         for page in InclusivePageRange::new(start_page, end_page) {
             let frame = match Kernel::with_frame_allocator(|allocator| allocator.allocate_frame()) {
