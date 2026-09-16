@@ -85,7 +85,7 @@ impl InterruptionController for PicController {
 
 /// Execute la fonction en paramètre en désactivant les interruptions processeur.
 pub fn without_interrupts<R>(f: impl FnOnce() -> R) -> R {
-    x86_64::instructions::interrupts::without_interrupts(|| f())
+    x86_64::instructions::interrupts::without_interrupts(f)
 }
 
 impl InterruptionType {
