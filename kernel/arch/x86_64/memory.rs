@@ -105,7 +105,7 @@ pub unsafe fn init_kernel_memory(
 
 /// Instancie un nouveau mapper utilisateur indépendant.
 pub unsafe fn new_user_mapper() -> X86_64Mapper<'static> {
-    let phys_mem_offset = Kernel::on_instance().get_phys_mem_offset();
+    let phys_mem_offset = Kernel::on_instance(|kernel| kernel.get_phys_mem_offset());
     let user_pml4 = new_user_pml4(phys_mem_offset);
     X86_64Mapper::new(phys_mem_offset, user_pml4)
 }
