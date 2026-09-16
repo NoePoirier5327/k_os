@@ -29,10 +29,9 @@ boot:
   ; On s'assure que le pointeur de pile est placé correctement
   extern stack_top
   mov rsp, stack_top
-  mov rsi, 0xFFFF800000000000 ; 2ème argument, physical memory offset
-  add rsp, rsi ; On place la pile dans le higher half
 
-  mov rdi, r8 ; 1er argument, on récupère le pointeur multiboot2.
+  mov rdi, r8                 ; 1er argument, on récupère le pointeur multiboot2.
+  mov rsi, 0xFFFF800000000000 ; 2nd argument, physical memory offset x86_64
 
   mov rax, kernel_start ; Pour accéder au début du noyau en higher-half
   call rax
