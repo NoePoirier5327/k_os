@@ -24,7 +24,7 @@ pub unsafe fn load_elf(
     user_mapper: &mut dyn MapperTrait
 ) -> VirtAddr {
     let elf = Elf::parse(elf_bytes).expect("Invalid elf64 file.");
-    let virt_mem_offset = VirtAddr::new(Kernel::on_instance().get_phys_mem_offset().as_u64());
+    let virt_mem_offset = VirtAddr::new(Kernel::on_instance(|kernel| kernel.get_phys_mem_offset().as_u64()));
 
     for phdr in &elf.program_headers {
         if phdr.p_type != PT_LOAD {
