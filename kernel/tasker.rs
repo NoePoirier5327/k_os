@@ -13,7 +13,8 @@ use thread_manager::thread::{TId, ThreadState};
 use spin::{Once, Mutex};
 use alloc::string::String;
 use crate::arch::without_interrupts;
-use crate::memory::stack::{KernelStack16Kib, KernelStackAllocator, UserStack16Kib};
+use crate::kernel::Kernel;
+use crate::memory::stack::{KernelStack16Kib, UserStack16Kib};
 
 /// Unique instance de l'interface de gestion des processus.
 static TASKER_INSTANCE: Once<Mutex<Tasker>> = Once::new();
@@ -24,7 +25,6 @@ pub struct Tasker {
     process_manager: ProcessManager<'static>,
     thread_manager: ThreadManager,
     scheduler: Scheduler,
-    kernel_stack_allocator: KernelStackAllocator,
 }
 
 impl Tasker {
@@ -36,7 +36,6 @@ impl Tasker {
                     process_manager: ProcessManager::new(),
                     thread_manager: ThreadManager::new(),
                     scheduler: Scheduler::new(),
-                    kernel_stack_allocator: KernelStackAllocator::new()
                 }
             )
         );
@@ -118,11 +117,11 @@ impl Tasker {
         }
 
         // On alloue la pile kernel pour le nouveau thread.
-        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_top_vaddr = Kernel::on_instance_mut(|kernel| kernel.allocate_stack_top());
         let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
-                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
+                Kernel::on_instance_mut(|kernel| kernel.deallocate_stack_top(kernel_top_vaddr));
                 panic!("{:?}", e);
             }
         };
@@ -159,11 +158,11 @@ impl Tasker {
             return Err(TaskerError::WrongProcessKind);
         }
 
-        let kernel_top_vaddr = self.kernel_stack_allocator.allocate_top();
+        let kernel_top_vaddr = Kernel::on_instance_mut(|kernel| kernel.allocate_stack_top());
         let kernel_stack = match unsafe { KernelStack16Kib::allocate(kernel_top_vaddr) } {
             Ok(stack) => stack,
             Err(e) => {
-                self.kernel_stack_allocator.deallocate_top(kernel_top_vaddr);
+                Kernel::on_instance_mut(|kernel| kernel.deallocate_stack_top(kernel_top_vaddr));
                 panic!("{:?}", e);
             }
         };
@@ -236,7 +235,7 @@ impl Tasker {
             
             // On désalloue sa pile kernel.
             let top_vaddr = thread.get_kernel_top_vaddr();
-            self.kernel_stack_allocator.deallocate_top(top_vaddr);
+            Kernel::on_instance_mut(|kernel| kernel.deallocate_stack_top(top_vaddr));
             thread.deallocate_kernel_stack();
 
             // Puis, on désalloue sa pile utilisateur si besoin.
