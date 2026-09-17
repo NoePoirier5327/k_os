@@ -1,21 +1,21 @@
 rax,Name,rdi,rsi,rdx,r10,r8,r9,Retour dans rax,Description
-0x00,sys_disp,msg : char*,msg_len : size_t,,,,,"Si positif, l’ecriture s’est bien passé, sinon, code d’erreur spécifique.",Affiche le message en paramètre à l’écran.
-0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,,,,"Si positif, changement effectué, sinon, code d’erreur spécifique.",Change la couleur d’affichage dans le buffer vga.
-0x02,sys_palloc,,,,,,,,Alloue une page de 4ko accessible à l’utilisateur.
+0x00,sys_disp,msg : char*,msg_len : size_t,,,,,"Si positif, l’ecriture s’est bien passé, sinon, ARGERROR.",Affiche le message en paramètre à l’écran.
+0x01,sys_dispcolor,ft_color : char (pour u8),bg_color : char (pour u8),,,,,"Si positif, changement effectué, sinon, ARGERROR.",Change la couleur d’affichage dans le buffer vga.
+0x02,sys_palloc,,,,,,,"si positif, adresse de début de la page allouée sinon NOMEMLEFT.",Alloue une page de 4ko accessible à l’utilisateur.
 0x03,sys_key_read,,,,,,,"Si positif, entrée clavier, sinon, code d’erreur spécifique.",Renvoie le dernier caractère saisie par l’utilisateur sur le clavier.
 0x04,sys_fown,owner (?),file_path : char *,file_path_size : size_t,,,,,Change le propriétaire du fichier en paramètre.
 0x05,posix_execve,file_path : c_str, argv: c_str[],env_var:c_str[],,,,,Lance un exécutabe elf64 sur le processus appelant.
 0x06,sys_shutdown,,,,,,,,Eteint le kernel ainsi que la machine.
-0x07,sys_pkill,process_handle: size_t,kill_code : uint,,,,,,Tue un processus en fonction de son entrée dans la table de processus enfant du processus courant.
-0x08,sys_exit,exit_code : int,,,,,,,Signal au noyau une fin de processus utilisateur.
-0x09,sys_umemcpy,adr : long,,,,,,,Place une adresse dans les pages utilisateur.
-0x0A,sys_ralloc,adr : long,len : size_t,,,,,,Alloue une région mémoire à l’utilisateur.
-0x0B,sys_create_exec_policy,parent_policy : size_t,max_ram_bytes : size_t,rights : uint64_t,,,,"Si positif, handle de la nouvelle politique d’exécution, sinon, code d’erreur spécifique.","Créer une nouvelle politique d’exécution dépendante de son parent avec sa propre quantitée de ram allouée et ses droits. De plus, une politique ne peut avoir plus de droits ou de ram allouée que son parent."
-0x0C,sys_create_process,policy : size_t,name : c_str,entry_point : uint64_t,stack_size : size_t,,,"Si positif, handle du nouveau processus, sinon, code d’erreur spécifique.",Créer un nouveau processus ainsi qu’un thread enfant lancé sur le point d’entré en paramètre.
-0x0D,sys_create_empty_process,policy : size_t,name : c_str,,,,,"Si positif, handle, dans le parent, du nouveau processus enfant, sinon, code d’erreur spécifique.",Créer un nouveau processus vide.
-0x0E,sys_create_thread,parent_process_handle : size_t,entry_point : uint64_t,stack_size : size_t,,,,"Si positif, handle dans le processus parent, sinon, code d’erreur spécifique.",Créer un nouveau thread associé à un processus parent.
-0x0F,sys_getpid,,,,,,,"Si positif, handle du processus courant, sinon, code d’erreur spécifique.",Renvoie 0 car le handle du processus courant est toujours 0 dans sa table interne.
-0x10,sys_gettid,,,,,,,"Si positif, handle du thread courant dans le processus parent, sinon, code d’erreur spécifique.",Renvoie le handle du thread courant dans son processus parent.
-0x11,sys_brk,new_brk : uint64_t,,,,,,"Si positif, nouvelle adresse du haut du tas, sinon, code d’erreur spécifique.","Alloue ou désalloue des pages à partir de l’adresse courante du haut du tas, syscall identique à linux"
-0x12,sys_waitpid,process_handle: size_t,options : uint64_t,wstatus : int*,posix_rusage : rusage*,,,"Si positif, handle du processus terminé, sinon, code d‘erreur spécifique.",Bloque un processus enfant au processus courant ainsi que tous les threads qui lui sont subordonnés.
-0x13,sys_waittid,thread_handle : size_t,options : uint64_t,wstatus : int*,posix_rusage : rusage*,,,"Si positif, handle du thread terminé, sinon, code d’erreur spécifique.",Bloque un l’exécution d’un thread unique en fonction d’options
+0x07,sys_pkill,process_handle: size_t,kill_code : uint,,,,,"Si positif ESUCCESS, sinon EFAILED ou ARGERROR.",Tue un processus en fonction de son entrée dans la table de processus enfant du processus courant.
+0x08,sys_exit,exit_code : int,,,,,,"Si positif, ESUCCESS sinon EFAILED.",Signal au noyau une fin de processus utilisateur.
+0x09,sys_umemcpy,adr : long,,,,,,"Si positif, ESUCCESS sinon EFAILED, ARGERROR ou NOMEMLEFT.",Place une adresse dans les pages utilisateur.
+0x0A,sys_ralloc,adr : long,len : size_t,,,,,"Si positif, adresse de début de la région allouée, sinon, NOMEMLEFT",Alloue une région mémoire à l’utilisateur.
+0x0B,sys_create_exec_policy,parent_policy : size_t,max_ram_bytes : size_t,rights : uint64_t,,,,"Si positif, handle de la nouvelle politique d’exécution, sinon, ARGERROR.","Créer une nouvelle politique d’exécution dépendante de son parent avec sa propre quantitée de ram allouée et ses droits. De plus, une politique ne peut avoir plus de droits ou de ram allouée que son parent."
+0x0C,sys_create_process,policy : size_t,name : c_str,entry_point : uint64_t,stack_size : size_t,,,"Si positif, handle du nouveau processus, sinon, ARGERROR ou NOMEMLEFT.",Créer un nouveau processus ainsi qu’un thread enfant lancé sur le point d’entré en paramètre.
+0x0D,sys_create_empty_process,policy : size_t,name : c_str,,,,,"Si positif, handle, dans le parent, du nouveau processus enfant, sinon, ARGERROR.",Créer un nouveau processus vide.
+0x0E,sys_create_thread,parent_process_handle : size_t,entry_point : uint64_t,stack_size : size_t,,,,"Si positif, handle dans le processus parent, sinon, ARGERROR ou NOMEMLEFT.",Créer un nouveau thread associé à un processus parent.
+0x0F,sys_getpid,,,,,,,"Si positif, handle du processus courant, sinon, EFAILED.",Renvoie 0 car le handle du processus courant est toujours 0 dans sa table interne.
+0x10,sys_gettid,,,,,,,"Si positif, handle du thread courant dans le processus parent, sinon EFAILED.",Renvoie le handle du thread courant dans son processus parent.
+0x11,sys_brk,new_brk : uint64_t,,,,,,"Si positif, nouvelle adresse du haut du tas, sinon, ARGERROR ou NOMEMLEFT.","Alloue ou désalloue des pages à partir de l’adresse courante du haut du tas, syscall identique à linux"
+0x12,sys_waitpid,process_handle: size_t,options : uint64_t,wstatus : int*,posix_rusage : rusage*,,,"Si positif, handle du processus terminé, sinon ARGERROR ou EFAILED.",Bloque un processus enfant au processus courant ainsi que tous les threads qui lui sont subordonnés.
+0x13,sys_waittid,thread_handle : size_t,options : uint64_t,wstatus : int*,posix_rusage : rusage*,,,"Si positif, handle du thread terminé, sinon ARGERROR ou EFAILED.",Bloque un l’exécution d’un thread unique en fonction d’options
