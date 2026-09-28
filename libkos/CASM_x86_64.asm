@@ -34,7 +34,7 @@
 	mov rsi, %2    ; msg_len (size_t)
 	syscall        ; the return value is stored in the rax register
 %endmacro
-; On sucess a positive number is returned, otherwise a negative error code will be returned
+; On sucess a positive number is returned, otherwise an negative ARGERROR code will be returned 
 
 ;SYS_DISPCOLOR
 ; Changes the display color for the VGA buffer.
@@ -44,7 +44,7 @@
 	mov rsi, %2    ; bg_color (char)
 	syscall        ; the return value is stored in the rax register
 %endmacro
-; On sucess a positive number is returned, otherwise a negative error code will be returned
+; On sucess a positive number is returned, otherwise an negative ARGERROR code will be returned 
 
 ;SYS_PALLOC
 ; allocates a user accessible 4kB page.
@@ -52,7 +52,7 @@
 	mov rax, 0x02  ; syscall sys_palloc
 	syscall        
 %endmacro
-; [no documentation is available, behaviour unknown]
+; On sucess returns the starting address of the allocated page, otherwise a negative NOMEMLEFT error will be returned. 
 
 ;SYS_KEYREAD
 ; returns the last character typed by user.
@@ -60,6 +60,7 @@
 	mov rax, 0x03  ; syscall sys_keyread 
 	syscall        ; the return value is stored in the rax register 
 %endmacro
+; ! generic description !
 ; On sucess returns key, otherwise a negative error code will be returned.
 
 ;SYS_FOWN
@@ -102,7 +103,7 @@
 	mov rsi, %2   ; kill_code      (uint)
 	syscall       ; the return value is stored in the rax register 
 %endmacro
-; [no documentation is available, behaviour unknown]
+; On succes ESUCCESS is returned, otherwise negative EFAILED or ARGERROR error code are returned.
 
 ;SYS_EXIT
 ; Send signal to kernel to kill the user's process.
@@ -111,7 +112,7 @@
 	mov rdi, %1   ; exit_code (int)
 	syscall
 %endmacro
-; [no documentation is available, behaviour unknown]
+; On succes ESUCCESS is returned, otherwise negative EFAILED error code are returned.
 
 ;SYS_UMEMCPY
 ; Places an adress in the user's pages.
@@ -120,7 +121,7 @@
 	mov rdi, %1   ; adr (long)
 	syscall
 %endmacro
-; [no documentation is available, behaviour unknown]
+; On succes ESUCCESS is returned, otherwise negative EFAILED, ARGERROR or NOMEMLEFT error codes are returned.
 
 ; SYS_RALLOC
 ; allocates a region of memory for the user.
@@ -130,7 +131,7 @@
 	mov rsi, %2   ; len (size_t)
 	syscall 
 %endmacro
-; [no documentation is available, behaviour unknown]
+; On sucess returns the starting address of the allocated region, otherwise an NOMEMLEFT error is returned.
 
 ;SYS_CREATE_EXEC_POLICY
 %macro sys_create_exec_policy 3
@@ -140,7 +141,7 @@
 	mov rdx, %3   ; rights 		  (uint64_t)
 	syscall       ; the return value is stored in the rax register 
 %endmacro
-; On success returns handle for next execution policy, otherwise returns a negative error code.
+; On success returns handle for next execution policy, otherwise returns an negative ARGERROR error code.
 
 ;SYS_CREATE_PROCESS
 ; Creates a new process and child thread on the specified entry point.
@@ -152,7 +153,7 @@
 	mov r10, %4   ; stack_size  (size_t)
 	syscall       ; the return value is stored in the rax register 
 %endmacro	
-; On success returns handle for new process otherwise returns a negative error code.
+; On success returns handle for new process otherwise returns a negative ARGERROR or NOMEMLEFT error code.
 
 ;SYS_CREATE_EMPTY_PROCESS
 ; Creates an ampty process.
@@ -186,25 +187,24 @@
 	mov rax, 0x0F ; syscall sys_getpid
 	syscall       ; the return value is stored in the rax register 
 %endmacro
-;On success returns handle for new process otherwise returns a negative error code.
+;On success returns handle for new process otherwise returns a negative EFAILED error code.
 
 ;SYS_GETID
-; NOT IMPLEMENTED YET DO NOT USE, THIS SHOULD BE ADDED IN THE FUTURE IF NOT
-; CHECK DOCUMENTATION ON GITHUB.
+; gets the current thread's handle inside it's parent process
 %macro sys_getid
 	mov rax, 0x10 ; syscall sys_getpid
 	syscall
 %endmacro
-;On success returns handle for the thread on the parent process otherwise returns a negative error code.
+;On success returns handle for the thread on the parent process otherwise returns a EFAILED negative error code.
 
 ;SYS_BRK
-; Allocates and deallocates pages of memory based on the the stack top current address, this syscall is identical to it's linux counterpart. 
+; Allocates and deallocates pages of memory based on the the stack top current address, this syscall is functionaly identical to it's linux counterpart. 
 %macro sys_brk 1
 	mov rax, 0x11 ; syscall sys_brk
 	mov rdi, %1   ; new_brk (uint64_t)
 	syscall       ; the return value is stored in the rax register 
 %endmacro
-; On success returns new address for top of the stack otherwise returns a negative error code.
+; On success returns new address for top of the stack otherwise returns a ARGERROR or NOMEMLEFT negative error code.
 
 ;SYS_WAITPID
 ; blocks a child process to the running process as well as all the thread that are attached to it.
@@ -216,7 +216,7 @@
 	mov r10, %4   ;	posix_rusage   (rusage*)
 	syscall	      ; the return value is stored in the rax register 
 %endmacro
-; On success returns the handle of the process when it terminates, otherwise returns a negative error code.
+; On success returns the handle of the process when it terminates, otherwise returns a negative ARGERROR or EFAILED error code.
 
 ;SYS_WAITID
 ; block the execution of a sigle thread based on the options given
@@ -227,5 +227,5 @@
 	mov rdx, %3   ;	wstatus       (int*)
 	mov r10, %4   ;	posix_rusage  (rusage*)
 %endmacro
-; On sucess returns handle to terminated thread otherwise returns a negative error code.
+; On sucess returns handle to terminated thread otherwise returns a negative ARGERROR or EFAILED error code.
 
